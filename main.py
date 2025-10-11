@@ -19,15 +19,17 @@ from handlers.profile_handler import handle_profile_callback
 from handlers.basic_handler import id_command, participants_command, report_command
 from handlers.link_handler import trixlinks_command
 
-# Handlers - Модерация
 from handlers.moderation_handler import (
-    ban_command, unban_command, mute_command, unmute_command,
-    banlist_command, stats_command, top_command, lastseen_command
-)
-from handlers.advanced_moderation import (
-    del_command, purge_command, slowmode_command, 
-    noslowmode_command, lockdown_command, antiinvite_command,
-    tagall_command, admins_command
+    handle_moderation_callback,
+    handle_moderation_text,
+    ban_command, 
+    unban_command, 
+    mute_command, 
+    unmute_command,
+    banlist_command, 
+    stats_command, 
+    top_command, 
+    lastseen_command
 )
 
 # Handlers - Админ
