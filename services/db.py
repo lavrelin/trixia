@@ -62,7 +62,7 @@ class Database:
             logger.info("🔍 DATABASE INITIALIZATION")
             logger.info(f"Raw DATABASE_URL: {db_url[:60]}...")
             
-            # ИСПРАВЛЕНИЕ: Правильная конвертация URL для async
+            # Конвертируем URL для async
             if not db_url:
                 logger.error("❌ DATABASE_URL is empty!")
                 raise ValueError("DATABASE_URL not configured")
@@ -86,15 +86,15 @@ class Database:
             
             logger.info(f"✅ Final DATABASE_URL: {db_url[:60]}...")
             
-            # ИСПРАВЛЕНИЕ: Определяем параметры подключения в зависимости от БД
+            # ИСПРАВЛЕНИЕ: Определяем параметры подключения БЕЗ connection_class
             connect_args = {}
             pool_size = 5
             max_overflow = 10
             
             if 'postgresql' in db_url:
                 logger.info("📊 Database: PostgreSQL with asyncpg")
+                # ИСПРАВЛЕНО: убрали connection_class и ssl='require'
                 connect_args = {
-                    'ssl': 'require',
                     'timeout': 30,
                     'command_timeout': 30
                 }
@@ -103,9 +103,9 @@ class Database:
             
             elif 'sqlite' in db_url:
                 logger.info("📊 Database: SQLite with aiosqlite")
+                # ИСПРАВЛЕНО: убрали check_same_thread для aiosqlite
                 connect_args = {
-                    'timeout': 30,
-                    'check_same_thread': False
+                    'timeout': 30
                 }
                 pool_size = 1
                 max_overflow = 0
