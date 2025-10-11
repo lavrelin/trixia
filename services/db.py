@@ -6,6 +6,7 @@ from datetime import datetime
 from config import Config
 from contextlib import asynccontextmanager
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class Publication(Base):
     text = Column(Text)
     media_type = Column(String(50))
     media_file_id = Column(String(255))
-    status = Column(String(50), default='pending')  # pending, approved, rejected
+    status = Column(String(50), default='pending')
     created_at = Column(DateTime, default=datetime.now)
     moderated_at = Column(DateTime)
     moderator_id = Column(Integer)
@@ -40,7 +41,7 @@ class PiarRequest(Base):
     description = Column(Text)
     phone = Column(String(50))
     link = Column(String(500))
-    media_file_ids = Column(Text)  # JSON array of file IDs
+    media_file_ids = Column(Text)
     status = Column(String(50), default='pending')
     created_at = Column(DateTime, default=datetime.now)
     moderated_at = Column(DateTime)
@@ -56,42 +57,134 @@ class Database:
     async def init(self):
         """Инициализация базы данных"""
         try:
-            # Конвертируем URL для async
             db_url = Config.DATABASE_URL
-            if db_url.startswith('sqlite:///'):
-                db_url = db_url.replace('sqlite:///', 'sqlite+aiosqlite:///')
-            elif db_url.startswith('postgresql://'):
-                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://')
+            
+            logger.info("🔍 DATABASE INITIALIZATION")
+            logger.info(f"Raw DATABASE_URL: {db_url[:60]}...")
+            
+            # ИСПРАВЛЕНИЕ: Правильная конвертация URL для async
+            if not db_url:
+                logger.error("❌ DATABASE_URL is empty!")
+                raise ValueError("DATABASE_URL not configured")
+            
+            # Конвертируем postgresql:// в postgresql+asyncpg://
+            if db_url.startswith('postgresql://'):
+                db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+                logger.info("✅ Converted postgresql:// → postgresql+asyncpg://")
+            
+            elif db_url.startswith('postgres://'):
+                db_url = db_url.replace('postgres://', 'postgresql+asyncpg://', 1)
+                logger.info("✅ Converted postgres:// → postgresql+asyncpg://")
+            
+            elif db_url.startswith('sqlite:///'):
+                db_url = db_url.replace('sqlite:///', 'sqlite+aiosqlite:///', 1)
+                logger.info("✅ Converted sqlite:// → sqlite+aiosqlite://")
+            
+            elif db_url.startswith('sqlite://'):
+                db_url = db_url.replace('sqlite://', 'sqlite+aiosqlite:///', 1)
+                logger.info("✅ Converted sqlite:// → sqlite+aiosqlite://")
+            
+            logger.info(f"✅ Final DATABASE_URL: {db_url[:60]}...")
+            
+            # ИСПРАВЛЕНИЕ: Определяем параметры подключения в зависимости от БД
+            connect_args = {}
+            pool_size = 5
+            max_overflow = 10
+            
+            if 'postgresql' in db_url:
+                logger.info("📊 Database: PostgreSQL with asyncpg")
+                connect_args = {
+                    'ssl': 'require',
+                    'timeout': 30,
+                    'command_timeout': 30,
+                    'connection_class': None  # Используем default
+                }
+                pool_size = 10
+                max_overflow = 20
+            
+            elif 'sqlite' in db_url:
+                logger.info("📊 Database: SQLite with aiosqlite")
+                connect_args = {
+                    'timeout': 30,
+                    'check_same_thread': False
+                }
+                pool_size = 1
+                max_overflow = 0
+            
+            else:
+                logger.warning(f"⚠️  Unknown database type in: {db_url[:50]}")
+            
+            logger.info(f"🔧 Connection args: {connect_args}")
+            
+            # Создаем engine
+            logger.info("⏳ Creating async engine...")
             
             self.engine = create_async_engine(
                 db_url,
                 echo=False,
-                pool_pre_ping=True
+                pool_pre_ping=True,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
+                connect_args=connect_args,
+                future=True  # Важно для asyncpg
             )
             
+            logger.info("✅ Engine created")
+            
+            # Создаем session maker
             self.session_maker = async_sessionmaker(
                 self.engine,
                 class_=AsyncSession,
-                expire_on_commit=False
+                expire_on_commit=False,
+                future=True
             )
             
+            logger.info("✅ Session maker created")
+            
+            # Тестируем подключение
+            logger.info("⏳ Testing connection...")
+            try:
+                async with self.engine.connect() as conn:
+                    from sqlalchemy import text
+                    result = await conn.execute(text("SELECT 1"))
+                    value = result.scalar()
+                    logger.info(f"✅ Connection test successful (result: {value})")
+            except Exception as test_error:
+                logger.error(f"❌ Connection test failed: {test_error}")
+                logger.error(f"   Type: {type(test_error).__name__}")
+                logger.error(f"   Message: {str(test_error)[:200]}")
+                raise
+            
             # Создаем таблицы
+            logger.info("⏳ Creating tables...")
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
             
-            logger.info("Database initialized successfully")
+            logger.info("✅ Tables created")
+            logger.info("✅ Database initialized successfully")
+            
         except Exception as e:
-            logger.error(f"Error initializing database: {e}")
+            logger.error(f"❌ Error initializing database: {e}", exc_info=True)
+            logger.error("")
+            logger.error("🔍 Debugging:")
+            logger.error(f"  DATABASE_URL: {Config.DATABASE_URL[:60]}...")
+            logger.error(f"  Error type: {type(e).__name__}")
+            logger.error("")
+            logger.error("💡 Solutions:")
+            logger.error("  1. Check if PostgreSQL is running/accessible")
+            logger.error("  2. Verify DATABASE_URL format is correct")
+            logger.error("  3. On Railway: Delete PostgreSQL service and create it again")
+            logger.error("  4. Wait 3-5 minutes after creating PostgreSQL on Railway")
+            raise
     
     @asynccontextmanager
     async def get_session(self):
         """Получить сессию базы данных"""
         if not self.session_maker:
-            logger.warning("Database not initialized, attempting to initialize...")
+            logger.warning("Database not initialized, attempting init...")
             await self.init()
         
         if not self.session_maker:
-            # Если всё ещё не инициализировано - создаём заглушку
             logger.error("Database session unavailable - using dummy session")
             
             class DummySession:
@@ -103,17 +196,16 @@ class Database:
                 async def rollback(self):
                     logger.warning("Dummy session rollback called")
                 async def close(self):
-                    logger.warning("Dummy session close called")
+                    pass
                 async def flush(self):
-                    logger.warning("Dummy session flush called")
+                    pass
                 async def refresh(self, *args):
-                    logger.warning("Dummy session refresh called")
+                    pass
                 def add(self, *args):
-                    logger.warning("Dummy session add called")
+                    pass
             
-            dummy = DummySession()
             try:
-                yield dummy
+                yield DummySession()
             finally:
                 pass
             return
@@ -121,8 +213,6 @@ class Database:
         async with self.session_maker() as session:
             try:
                 yield session
-                # ИСПРАВЛЕНО: не делаем автоматический commit
-                # Commit делается явно в коде где нужно
             except Exception as e:
                 await session.rollback()
                 logger.error(f"Database session error: {e}")
