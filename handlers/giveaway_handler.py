@@ -50,10 +50,13 @@ async def giveaway_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "🔥 **РЕГУЛЯРНЫЕ РАЗДАЧИ ОТ ТРИКС**\n\n"
         
-        "✨ **Daily** — 🧏🏻‍♀️ 15$ в день🐦‍🔥. Лучший пост, коммент, тег \n"
-        "💫 **Weekly** — 🧏‍♂️ 55$ в неделю🐦‍🔥. Roll,NTM,TopWeek, 7TT \n"
-        "🌟 **Monthly** — 🧏🏼 200$+ в месяц🐦‍🔥. 🫂 Будь участником,🎫TrixTicket\n"
-        "⚡️ **Quests** — 🕺 Доступные квесты за деньги\n\n"
+        "✨ **Daily** — 🧏🏻‍♀️ 15$ в день\n"
+        "🐦‍🔥 Топ дня: пост, коммент, тег - отметка @трикс \n"
+        "💫 **Weekly** — 🧏‍♂️ 55$ в неделю\n"
+        "🐦‍🔥 Roll,NTM,TopWeek, 7TT \n
+        "🌟 **Monthly** — 🧏🏼 220$+ в месяц\n"
+        "🐦‍🔥 Member 100$, 🎫 TrixTicket 100$, 🙅Каталог услуг - 20$\n"
+        "⚡️ **Quests** — 🕺 Задание = 🪙 Деньги\n\n"
         
         "👄 Информация обновляется в группе: https://t.me/budapestpartners\n"
         "🫦 Выплата призов до 24х часов в USDT\n\n"
@@ -96,10 +99,10 @@ async def handle_giveaway_callback(update: Update, context: ContextTypes.DEFAULT
 async def show_daily_menu(query, context):
     """Меню ежедневных розыгрышей"""
     keyboard = [
-        [InlineKeyboardButton("🏆 TopDayPost", callback_data="giveaway:stats:daypost")],
-        [InlineKeyboardButton("🗣️ TopDayComment", callback_data="giveaway:stats:daycomment")],
+        [InlineKeyboardButton("🔲 TopDayPost", callback_data="giveaway:stats:daypost")],
+        [InlineKeyboardButton("🔳 TopDayComment", callback_data="giveaway:stats:daycomment")],
         [InlineKeyboardButton("🌀 TopDayTager", callback_data="giveaway:stats:daytag")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="giveaway:back")]
+        [InlineKeyboardButton("🏎️ Назад", callback_data="giveaway:back")]
     ]
     
     text = (
