@@ -20,7 +20,7 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
     logger.info(f"Moderation callback from user {user_id}: {query.data}")
     
     if not Config.is_moderator(user_id):
-        await query.answer("❌ Доступ запрещен", show_alert=True)
+        await query.answer("👮 What?", show_alert=True)
         logger.warning(f"Access denied for user {user_id}")
         return
     
@@ -45,7 +45,7 @@ async def handle_moderation_callback(update: Update, context: ContextTypes.DEFAU
         await start_reject_process(update, context, post_id)
     else:
         logger.error(f"Unknown moderation action: {action}")
-        await query.edit_message_text("❌ Неизвестное действие")
+        await query.edit_message_text("🤡 Что происходит...")
 
 async def handle_moderation_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle text input from moderators"""
@@ -119,13 +119,13 @@ async def start_approve_process(update: Update, context: ContextTypes.DEFAULT_TY
             logger.warning(f"Could not update message text: {e}")
         
         instruction_text = (
-            f"✅ ОДОБРЕНИЕ ЗАЯВКИ\n\n"
-            f"📊 Post ID: {post_id}\n"
-            f"👤 User ID: {post.user_id}\n"
-            f"📍 Публикация в: {destination}\n\n"
-            f"📎 Отправьте ссылку на опубликованный пост:\n"
-            f"(Например: https://t.me/snghu/1234)\n\n"
-            f"💡 Отправьте только ссылку одним сообщением мне в ЛС"
+            f"✅ Успешно\n\n"
+            f"⚡️ Post ID: {post_id}\n"
+            f"🙋🏼‍♂️ User ID: {post.user_id}\n"
+            f"🎢 Пост для: {destination}\n\n"
+            f"🚨 Автор требует ссылку на опубликованый пост\n"
+            f"☄️ Скопируй и отправь сюда🧏‍♂️\n\n"
+            f"🐦‍🔥 Только ссылку ‼️ОДНИМ СООБЩЕНИЕМ‼️Триксу в ЛС"
         )
         
         try:
@@ -176,9 +176,9 @@ async def start_reject_process(update: Update, context: ContextTypes.DEFAULT_TYP
             pass
         
         instruction_text = (
-            f"❌ ОТКЛОНЕНИЕ ЗАЯВКИ\n\n"
-            f"📊 Post ID: {post_id}\n\n"
-            f"📝 Напишите причину отклонения (минимум 5 символов)"
+            f"💔 Отказ\n\n"
+            f"☀️ Post ID: {post_id}\n\n"
+            f"👨🏼‍⚖️ Пользователю нужна причина отказа❗️"
         )
         
         try:
@@ -198,11 +198,11 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
         is_chat = context.user_data.get('mod_is_chat', False)
         
         if not post_id or not user_id:
-            await update.message.reply_text("❌ Ошибка: данные не найдены")
+            await update.message.reply_text("👹 Ошибка: данные не найдены")
             return
         
         if not link.startswith('https://t.me/'):
-            await update.message.reply_text("❌ Неверный формат ссылки")
+            await update.message.reply_text("Горит...🤬.Посмотри что ты скопировал❗️")
             return
         
         from services.db import db
@@ -225,14 +225,14 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
         
         try:
             success_keyboard = [
-                [InlineKeyboardButton("📺 Перейти к посту", url=link)],
-                [InlineKeyboardButton("📢 Наш канал", url="https://t.me/snghu")]
+                [InlineKeyboardButton("👥 Пост", url=link)],
+                [InlineKeyboardButton("🫂 Чат", url="https://t.me/tgchatxxx")]
             ]
             
             user_message = (
-                f"✅ Ваша заявка одобрена!\n\n"
-                f"📝 Ваш пост опубликован в {destination_text}.\n\n"
-                f"🔗 Ссылка: {link}"
+                f"📱 Заявка принята\n\n"
+                f"📲 Ваш пост в {destination_text}.\n\n"
+                f"🤳🏼 Ссылка: {link}"
             )
             
             await context.bot.send_message(
@@ -247,9 +247,9 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
             logger.error(f"Error notifying user: {notify_error}")
         
         if user_notified:
-            await update.message.reply_text(f"✅ ЗАЯВКА ОДОБРЕНА\n\nПользователь уведомлен\nPost ID: {post_id}")
+            await update.message.reply_text(f"🟩 Заявка OK\n\nUSER в курсе ✅\nPost ID: {post_id}")
         else:
-            await update.message.reply_text(f"⚠️ ЗАЯВКА ОДОБРЕНА, но пользователь не уведомлен\nPost ID: {post_id}")
+            await update.message.reply_text(f"⚠️ Заявка OK, но user не знает об этом❗️\nPost ID: {post_id}")
         
         context.user_data.pop('mod_post_id', None)
         context.user_data.pop('mod_post_user_id', None)
@@ -258,7 +258,7 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
         
     except Exception as e:
         logger.error(f"Error processing approval: {e}", exc_info=True)
-        await update.message.reply_text("❌ Ошибка")
+        await update.message.reply_text("🤦 ERROR‼️")
 
 async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process rejection with reason"""
@@ -268,11 +268,11 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
         user_id = context.user_data.get('mod_post_user_id')
         
         if not post_id or not user_id:
-            await update.message.reply_text("❌ Ошибка: данные не найдены")
+            await update.message.reply_text("👹 Ошибка - нету инфы")
             return
         
         if len(reason) < 5:
-            await update.message.reply_text("❌ Причина слишком короткая (минимум 5 символов)")
+            await update.message.reply_text("5️⃣ символов минимум ")
             return
         
         from services.db import db
@@ -284,7 +284,7 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
             post = result.scalar_one_or_none()
             
             if not post:
-                await update.message.reply_text("❌ Пост не найден")
+                await update.message.reply_text("💨 Пост не найден")
                 return
             
             post.status = PostStatus.REJECTED
@@ -292,17 +292,17 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
         
         try:
             user_message = (
-                f"❌ Ваша заявка отклонена\n\n"
-                f"📝 Причина: {reason}\n\n"
-                f"Используйте /start для создания новой заявки"
+                f"☹️ Ваша заявка отклонена\n\n"
+                f"🤥 Причина отказа: {reason}\n\n"
+                f"😳 Попробуйте ещё раз"
             )
             
             await context.bot.send_message(chat_id=user_id, text=user_message)
-            await update.message.reply_text(f"❌ ЗАЯВКА ОТКЛОНЕНА\n\nПользователь уведомлен\nPost ID: {post_id}")
+            await update.message.reply_text(f"🛑 Заявка не будет опубликована\n\nПользователь уведомлен📭\nPost ID: {post_id}")
             
         except Exception as notify_error:
             logger.error(f"Error notifying user: {notify_error}")
-            await update.message.reply_text(f"⚠️ Заявка отклонена, но пользователь не уведомлен")
+            await update.message.reply_text(f"⚠️ Заявка отклонена, но user не уведомлен📪")
         
         context.user_data.pop('mod_post_id', None)
         context.user_data.pop('mod_post_user_id', None)
@@ -316,7 +316,7 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ban user"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🚔 Виу-виу-виу")
         return
     
     if not context.args:
@@ -333,7 +333,7 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     ban_user(user_data['id'], reason)
     
-    await update.message.reply_text(f"✅ @{username} забанен\nПричина: {reason}")
+    await update.message.reply_text(f"🧏‍♂️ @{username} теперь baned\nПотому что: {reason}")
     
     await admin_notifications.notify_ban(
         username=username,
@@ -345,7 +345,7 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Unban user"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🧖‍♀️ Без доступа")
         return
     
     if not context.args:
@@ -356,16 +356,16 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = get_user_by_username(username)
     
     if not user_data:
-        await update.message.reply_text("❌ Пользователь не найден")
+        await update.message.reply_text("🧐 Пользователя пока не видно")
         return
     
     unban_user(user_data['id'])
-    await update.message.reply_text(f"✅ @{username} разбанен")
+    await update.message.reply_text(f"🙋🏼‍♂️ @{username} разбанен")
 
 async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Mute user"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🙇 Понимаю... но нельзя")
         return
     
     if len(context.args) < 2:
@@ -377,7 +377,7 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     seconds = parse_time(time_str)
     if not seconds:
-        await update.message.reply_text("❌ Неверный формат времени")
+        await update.message.reply_text("⌚️ Формат не верный")
         return
     
     user_data = get_user_by_username(username)
@@ -393,7 +393,7 @@ async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Unmute user"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🤐 mmm... Эта команда не для тебя")
         return
     
     if not context.args:
@@ -404,7 +404,7 @@ async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = get_user_by_username(username)
     
     if not user_data:
-        await update.message.reply_text("❌ Пользователь не найден")
+        await update.message.reply_text("🤷Поиск провалился")
         return
     
     unmute_user(user_data['id'])
@@ -413,13 +413,13 @@ async def unmute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def banlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show banned users"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🤬 Нет прав")
         return
     
     banned = get_banned_users()
     
     if not banned:
-        await update.message.reply_text("📋 Забаненных пользователей нет")
+        await update.message.reply_text("🛣️BanList пустой")
         return
     
     text = f"🚫 Забанено: {len(banned)}\n\n"
@@ -431,19 +431,19 @@ async def banlist_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show bot stats"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("⛔️ Нельзя")
         return
     
     stats = get_user_stats()
     
     text = (
-        f"📊 СТАТИСТИКА\n\n"
-        f"👥 Пользователей: {stats['total_users']}\n"
-        f"🟢 Активных 24ч: {stats['active_24h']}\n"
-        f"🟢 Активных 7д: {stats['active_7d']}\n"
-        f"💬 Сообщений: {stats['total_messages']}\n"
-        f"🚫 Забанено: {stats['banned_count']}\n"
-        f"🔇 В муте: {stats['muted_count']}"
+        f"💹 Stats\n\n"
+        f"👥 Users: {stats['total_users']}\n"
+        f"🎡 Active 24: {stats['active_24h']}\n"
+        f"💃 Active 7d: {stats['active_7d']}\n"
+        f"👨🏼‍💻 Messages: {stats['total_messages']}\n"
+        f"👩‍⚖️ Baned: {stats['banned_count']}\n"
+        f"🤷🏻‍♀️ Muted: {stats['muted_count']}"
     )
     
     await update.message.reply_text(text)
@@ -451,7 +451,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show top users"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🚗 У тебя нет прав на это")
         return
     
     limit = 10
@@ -460,7 +460,7 @@ async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     top_users = get_top_users(limit)
     
-    text = f"🏆 ТОП {limit} ПОЛЬЗОВАТЕЛЕЙ\n\n"
+    text = f"🏆 Top {limit} users\n\n"
     for i, user in enumerate(top_users, 1):
         text += f"{i}. @{user['username']} - {user['message_count']} сообщений\n"
     
@@ -469,7 +469,7 @@ async def top_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def lastseen_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show last seen"""
     if not Config.is_moderator(update.effective_user.id):
-        await update.message.reply_text("❌ Нет прав")
+        await update.message.reply_text("🤣 У тебя нету прав")
         return
     
     if not context.args:
@@ -480,9 +480,9 @@ async def lastseen_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = get_user_by_username(username)
     
     if not user_data:
-        await update.message.reply_text("❌ Пользователь не найден")
+        await update.message.reply_text("🥵 Поиск неудачный")
         return
     
     last_activity = user_data['last_activity'].strftime('%d.%m.%Y %H:%M')
     
-    await update.message.reply_text(f"⏰ @{username}\nПоследняя активность: {last_activity}")
+    await update.message.reply_text(f"⚡️ @{username}\nПоследняя активность: {last_activity}")
