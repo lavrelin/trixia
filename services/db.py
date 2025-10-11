@@ -96,8 +96,7 @@ class Database:
                 connect_args = {
                     'ssl': 'require',
                     'timeout': 30,
-                    'command_timeout': 30,
-                    'connection_class': None  # Используем default
+                    'command_timeout': 30
                 }
                 pool_size = 10
                 max_overflow = 20
@@ -125,8 +124,7 @@ class Database:
                 pool_pre_ping=True,
                 pool_size=pool_size,
                 max_overflow=max_overflow,
-                connect_args=connect_args,
-                future=True  # Важно для asyncpg
+                connect_args=connect_args if connect_args else None
             )
             
             logger.info("✅ Engine created")
@@ -135,8 +133,7 @@ class Database:
             self.session_maker = async_sessionmaker(
                 self.engine,
                 class_=AsyncSession,
-                expire_on_commit=False,
-                future=True
+                expire_on_commit=False
             )
             
             logger.info("✅ Session maker created")
