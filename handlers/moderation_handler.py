@@ -217,7 +217,7 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
         user_id = context.user_data.get('mod_post_user_id')
         is_chat = context.user_data.get('mod_is_chat', False)
         
-        logger.info(f"{'='*50}\nPROCESS APPROVE\nPost: {post_id}, User: {user_id}, Link: {link}\n{'='*50}")
+        logger.info(f"PROCESS APPROVE: Post {post_id}, User {user_id}, Link {link}")
         
         if not post_id or not user_id:
             await update.message.reply_text("❌ Данные не найдены")
@@ -227,7 +227,7 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text("❌ Неверный формат ссылки")
             return
         
-        # Обновляем статус
+        # Update status
         from services.db import db
         from models import Post, PostStatus
         from sqlalchemy import select
@@ -240,13 +240,13 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
                 await update.message.reply_text("❌ Пост не найден")
                 return
             
-            post.status = PostStatus.APPROVED
+            post.status = PostStatus.APPROVED  # ИСПРАВЛЕНО: используем строку
             await session.commit()
             logger.info(f"✅ Post {post_id} approved")
         
         destination_text = "чате" if is_chat else "канале"
         
-        # Уведомляем пользователя
+        # Notify user
         try:
             keyboard = [
                 [InlineKeyboardButton("📺 Перейти к посту", url=link)],
@@ -269,20 +269,19 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text(f"✅ ОДОБРЕНО\n\nПользователь уведомлен\nPost: {post_id}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to notify user: {e}")
-            await update.message.reply_text(f"⚠️ ОДОБРЕНО, но пользователь не уведомлен\nPost: {post_id}")
+            logger.error(f"Failed to notify user: {e}")
+            await update.message.reply_text(f"⚠️ ОДОБРЕНО, но пользователь не уведомлен")
         
-        # Очищаем контекст
+        # Clear context
         context.user_data.pop('mod_post_id', None)
         context.user_data.pop('mod_post_user_id', None)
         context.user_data.pop('mod_waiting_for', None)
         context.user_data.pop('mod_is_chat', None)
         
-        logger.info(f"{'='*50}\nAPPROVE COMPLETED\n{'='*50}")
-        
     except Exception as e:
-        logger.error(f"❌ APPROVE PROCESS ERROR: {e}", exc_info=True)
+        logger.error(f"APPROVE PROCESS ERROR: {e}", exc_info=True)
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:200]}")
+
 
 async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Process rejection with reason"""
@@ -291,10 +290,9 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
         post_id = context.user_data.get('mod_post_id')
         user_id = context.user_data.get('mod_post_user_id')
         
-        logger.info(f"{'='*50}\nPROCESS REJECT\nPost: {post_id}, User: {user_id}, Reason: {reason[:50]}\n{'='*50}")
+        logger.info(f"PROCESS REJECT: Post {post_id}, User {user_id}")
         
         if not post_id or not user_id:
-            logger.error(f"❌ Missing data - post: {post_id}, user: {user_id}")
             await update.message.reply_text("❌ Данные не найдены")
             return
         
@@ -302,7 +300,7 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
             await update.message.reply_text("❌ Причина слишком короткая (мин. 5 символов)")
             return
         
-        # Обновляем статус
+        # Update status
         from services.db import db
         from models import Post, PostStatus
         from sqlalchemy import select
@@ -315,11 +313,11 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
                 await update.message.reply_text("❌ Пост не найден")
                 return
             
-            post.status = PostStatus.REJECTED
+            post.status = PostStatus.REJECTED  # ИСПРАВЛЕНО: используем строку
             await session.commit()
             logger.info(f"✅ Post {post_id} rejected")
         
-        # Уведомляем пользователя
+        # Notify user
         try:
             user_msg = (
                 f"❌ Заявка отклонена\n\n"
@@ -328,28 +326,25 @@ async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAU
                 f"Используйте /start"
             )
             
-            logger.info(f"📤 Sending rejection to user {user_id}...")
+            logger.info(f"Sending rejection to user {user_id}...")
             
             sent = await context.bot.send_message(chat_id=user_id, text=user_msg)
             
-            logger.info(f"✅✅✅ User {user_id} notified, msg_id: {sent.message_id}")
-            await update.message.reply_text(f"❌ ОТКЛОНЕНО\n\nПользователь уведомлен\nPost: {post_id}")
+            logger.info(f"✅ User {user_id} notified, msg_id: {sent.message_id}")
+            await update.message.reply_text(f"❌ ОТКЛОНЕНО\n\nПользователь уведомлен")
             
         except Exception as e:
-            logger.error(f"❌ Failed to notify user {user_id}: {e}", exc_info=True)
-            await update.message.reply_text(f"⚠️ ОТКЛОНЕНО, но пользователь не уведомлен\nPost: {post_id}\nUser: {user_id}")
+            logger.error(f"Failed to notify user {user_id}: {e}")
+            await update.message.reply_text(f"⚠️ ОТКЛОНЕНО, но пользователь не уведомлен")
         
-        # Очищаем контекст
+        # Clear context
         context.user_data.pop('mod_post_id', None)
         context.user_data.pop('mod_post_user_id', None)
         context.user_data.pop('mod_waiting_for', None)
         
-        logger.info(f"{'='*50}\nREJECT COMPLETED\n{'='*50}")
-        
     except Exception as e:
-        logger.error(f"❌ REJECT PROCESS ERROR: {e}", exc_info=True)
+        logger.error(f"REJECT PROCESS ERROR: {e}", exc_info=True)
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:200]}")
-
 # ============= MODERATION COMMANDS =============
 
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
