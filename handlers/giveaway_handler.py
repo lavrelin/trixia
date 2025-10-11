@@ -441,17 +441,17 @@ text = (
     "🔒 Крипта уходит покупателю\n\n"
     
     "📞 Вопросы или помощь? Пиши: @trixilvebot"
-   )
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Главное меню", callback_data="menu:back")]
-    ]
-    
-    await update.message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
-    )
+)
+
+keyboard = [
+    [InlineKeyboardButton("🔙 Главное меню", callback_data="menu:back")]
+]
+
+await update.message.reply_text(
+    text,
+    reply_markup=InlineKeyboardMarkup(keyboard),
+    parse_mode='Markdown'
+)
 
 # Функция для добавления записей (для админа)
 async def add_giveaway_record(section: str, winner: str, prize: str, status: str = "Выплачено"):
