@@ -335,6 +335,8 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+# Замени эти функции в handlers/publication_handler.py
+
 async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send post to moderation with fixed cooldown check"""
     user_id = update.effective_user.id
@@ -367,15 +369,13 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return
             
-            # ИСПРАВЛЕНИЕ: проверяем кулдаун правильно - с await
-            from services.cooldown import CooldownService
-            cooldown_service = CooldownService()
+            # ИСПРАВЛЕНИЕ: проверяем кулдаун правильно
+            from services.cooldown import cooldown_service
             
             try:
                 can_post, remaining_seconds = await cooldown_service.can_post(user_id)
             except Exception as cooldown_error:
-                logger.warning(f"Cooldown check failed: {cooldown_error}, using fallback")
-                # Fallback to simple check
+                logger.warning(f"Cooldown check failed: {cooldown_error}")
                 can_post = cooldown_service.simple_can_post(user_id)
                 remaining_seconds = cooldown_service.get_remaining_time(user_id)
             
@@ -386,7 +386,9 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return
             
-            # ИСПРАВЛЕНО: Безопасное создание поста с проверкой полей
+            # ИСПРАВЛЕНО: Используем PostStatus.PENDING вместо PostStatus.PENDING
+            from models import PostStatus  # Правильный импорт
+            
             create_post_data = {
                 'user_id': int(user_id),
                 'category': str(post_data.get('category', ''))[:255] if post_data.get('category') else None,
@@ -395,33 +397,33 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 'hashtags': list(post_data.get('hashtags', [])),
                 'anonymous': bool(post_data.get('anonymous', False)),
                 'media': list(post_data.get('media', [])),
-                'status': PostStatus.PENDING,
+                'status': PostStatus.PENDING,  # ИСПРАВЛЕНО: используем строку
                 'is_piar': False
             }
             
             # Create post
             post = Post(**create_post_data)
             session.add(post)
-            await session.flush()  # ИСПРАВЛЕНО: flush для получения ID
+            await session.flush()
             
             post_id = post.id
             logger.info(f"Created post with ID: {post_id}")
             
             await session.commit()
             
-            # Обновляем post из сессии
+            # Refresh post
             await session.refresh(post)
             
             # Send to moderation
             await send_to_moderation_group(update, context, post, user)
             
-            # Обновляем кулдаун
+            # Update cooldown
             try:
                 await cooldown_service.update_cooldown(user_id)
             except Exception:
-                cooldown_service.set_last_post_time(user_id)  # fallback
+                cooldown_service.set_last_post_time(user_id)
             
-            # Чистим данные пользователя
+            # Clean up
             context.user_data.pop('post_data', None)
             context.user_data.pop('waiting_for', None)
             
@@ -431,26 +433,24 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
             
     except Exception as e:
-        logger.error(f"Error sending to moderation: {e}")
+        logger.error(f"Error sending to moderation: {e}", exc_info=True)
         await update.callback_query.edit_message_text(
             "😖 Ошибка при отправке на модерацию"
         )
 
+
 async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
                                    post: Post, user: User):
-    """Send post to moderation group with safe markdown parsing"""
+    """Send post to moderation group - ИСПРАВЛЕННАЯ версия"""
     bot = context.bot
     
-    # Определяем куда отправлять пост
     is_actual = context.user_data.get('post_data', {}).get('is_actual', False)
     target_group = Config.MODERATION_GROUP_ID
     
-    # Функция для экранирования markdown символов
     def escape_markdown(text):
         """Экранирует специальные символы markdown"""
         if not text:
             return text
-        # Заменяем проблемные символы
         text = str(text)
         text = text.replace('*', '\\*')
         text = text.replace('_', '\\_')
@@ -459,9 +459,6 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
         text = text.replace('`', '\\`')
         return text
     
-    # =========================
-    # Сообщение для модерации (БЕЗ MARKDOWN для безопасности)
-    # =========================
     username = user.username or 'no_username'
     category = post.category or 'Unknown'
     
@@ -485,26 +482,23 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
         mod_text += f" → {post.subcategory}"
     
     if post.anonymous:
-        mod_text += "\n🫆Анонимно"
+        mod_text += "\n🫆 Анонимно"
     
-    # ИСПРАВЛЕНИЕ: добавляем проверку на None для медиа
     media_count = 0
     if post.media:
         try:
-            media_count = len(post.media)
+            media_count = len(post.media) if isinstance(post.media, list) else 0
             if media_count > 0:
-                mod_text += f"\n📀Медиа: {media_count} файл(ов)"
+                mod_text += f"\n📀 Медиа: {media_count} файл(ов)"
         except (TypeError, AttributeError):
             logger.warning(f"Invalid media data for post {post.id}: {post.media}")
     
-    # Безопасно добавляем текст поста (экранируем специальные символы)
     if post.text:
         post_text = post.text[:500] + "..." if len(post.text) > 500 else post.text
         mod_text += f"\n\n📝 Текст:\n{escape_markdown(post_text)}"
     else:
         mod_text += f"\n\n📝 Текст: (без текста)"
     
-    # Добавляем хештеги безопасно
     if post.hashtags:
         try:
             hashtags_text = " ".join(str(tag) for tag in post.hashtags)
@@ -512,7 +506,6 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
         except (TypeError, AttributeError):
             logger.warning(f"Invalid hashtags data for post {post.id}: {post.hashtags}")
     
-    # ИСПРАВЛЕНИЕ: убираем кнопку "Редактировать" которая не реализована
     if is_actual:
         keyboard = [
             [
@@ -540,12 +533,11 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
             )
             return
 
-        # Сначала отправляем медиа, если есть
+        # Отправляем медиа если есть
         media_messages = []
         if post.media and media_count > 0:
             for i, media_item in enumerate(post.media):
                 try:
-                    # ИСПРАВЛЕНИЕ: добавляем проверки на валидность медиа
                     if not media_item or not isinstance(media_item, dict):
                         logger.warning(f"Invalid media item {i}: {media_item}")
                         continue
@@ -587,17 +579,16 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
                     logger.error(f"Error sending media {i+1} for post {post.id}: {e}")
                     continue
         
-        # Затем отправляем текст с кнопками - БЕЗ parse_mode чтобы избежать ошибок
+        # Отправляем текст с кнопками
         try:
             message = await bot.send_message(
                 chat_id=target_group,
                 text=mod_text,
                 reply_markup=InlineKeyboardMarkup(keyboard)
-                # УБРАН parse_mode='Markdown' - это причина ошибки
             )
+            logger.info(f"✅ Post {post.id} sent to moderation successfully")
         except Exception as text_error:
             logger.error(f"Error sending moderation text: {text_error}")
-            # Fallback - отправляем упрощенное сообщение
             simple_text = (
                 f"Новая заявка от @{username} (ID: {user.id})\n"
                 f"Категория: {category}\n"
@@ -609,26 +600,23 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         
-        # Сохраняем ID сообщения безопасно
+        # Сохраняем message ID
         try:
             from sqlalchemy import text
             async with db.get_session() as session:
                 await session.execute(
                     text("UPDATE posts SET moderation_message_id = :msg_id WHERE id = :post_id"),
-                    {"msg_id": message.message_id, "post_id": int(post.id)}  # ИСПРАВЛЕНИЕ: используем int
+                    {"msg_id": message.message_id, "post_id": int(post.id)}
                 )
                 await session.commit()
+                logger.info(f"✅ Saved moderation_message_id for post {post.id}")
         except Exception as save_error:
-            logger.error(f"Error saving moderation_message_id: {save_error}")
-        
-        logger.info(f"Post {post.id} sent to moderation with {len(media_messages)} media files")
+            logger.warning(f"Could not save moderation_message_id: {save_error}")
             
     except Exception as e:
-        logger.error(f"Error sending to moderation group: {e}")
-        # Отправляем подробное сообщение об ошибке
-        error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
-        
+        logger.error(f"❌ Error sending to moderation group: {e}", exc_info=True)
         try:
+            error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
             await bot.send_message(
                 chat_id=user.id,
                 text=(
@@ -639,7 +627,7 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
                 )
             )
         except Exception as notify_error:
-            logger.error(f"Could not notify user about moderation error: {notify_error}")
+            logger.error(f"Could not notify user about error: {notify_error}")
 
 async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ask for cancellation reason"""
