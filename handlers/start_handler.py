@@ -72,7 +72,7 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("🙅‍♂️ Будапешт - канал", url="https://t.me/snghu")],
         [InlineKeyboardButton("🙅‍♀️ Будапешт - чат", url="https://t.me/tgchatxxx")],
-        [InlineKeyboardButton("🙅 Будапешт - каталог услуг", url="https://t.me/trixvault")],
+        [InlineKeyboardButton("🙅 Будапешт - каталог услуг", url="https://t.me/catalogtrix")],
         [InlineKeyboardButton("🕵️‍♂️ Куплю / Отдам / Продам", url="https://t.me/hungarytrade")],
         [InlineKeyboardButton("🚶‍♀️‍➡️ Писать", callback_data="menu:write")]
     ]
