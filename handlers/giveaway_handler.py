@@ -37,14 +37,14 @@ async def giveaway_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = [
         [
-            InlineKeyboardButton("🏆 Ежедневные", callback_data="giveaway:daily"),
-            InlineKeyboardButton("📋 Еженедельные", callback_data="giveaway:weekly")
+            InlineKeyboardButton("✨24h/Ежедневные", callback_data="giveaway:daily"),
+            InlineKeyboardButton("💫7d/Еженедельные", callback_data="giveaway:weekly")
         ],
         [
-            InlineKeyboardButton("🎁 Ежемесячные", callback_data="giveaway:monthly"),
-            InlineKeyboardButton("💰 Задания", callback_data="giveaway:tasks")
+            InlineKeyboardButton("🫦22th/Ежемесячные", callback_data="giveaway:monthly"),
+            InlineKeyboardButton("⚡️Задания", callback_data="giveaway:tasks")
         ],
-        [InlineKeyboardButton("🔙 Главное меню", callback_data="menu:back")]
+        [InlineKeyboardButton("↩️ Вернуться", callback_data="menu:back")]
     ]
     
     text = (
