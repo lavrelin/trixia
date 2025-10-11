@@ -9,16 +9,17 @@ from telegram.ext import (
 from dotenv import load_dotenv
 from config import Config
 
-# Handlers - ИСПРАВЛЕННЫЕ ИМПОРТЫ
+# ... [все импорты handlers остаются такими же] ...
+
 from handlers.start_handler import start_command
 from handlers.menu_handler import handle_menu_callback
 from handlers.publication_handler import handle_publication_callback, handle_text_input, handle_media_input
 from handlers.piar_handler import handle_piar_callback, handle_piar_text, handle_piar_photo
-from handlers.moderation_handler import handle_moderation_callback, handle_moderation_text  # UNIFIED
+from handlers.moderation_handler import handle_moderation_callback, handle_moderation_text
 from handlers.profile_handler import handle_profile_callback
 from handlers.basic_handler import id_command, participants_command, report_command
 from handlers.link_handler import trixlinks_command
-from handlers.moderation_handler import (  # ВСЕ ИЗ ОДНОГО ФАЙЛА
+from handlers.moderation_handler import (
     ban_command, unban_command, mute_command, unmute_command,
     banlist_command, stats_command, top_command, lastseen_command
 )
@@ -59,7 +60,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Кусок кода для замены в main.py функции init_db_tables()
+# ... [все остальные функции из main.py остаются такими же] ...
 
 async def init_db_tables():
     """Initialize database tables with better error handling"""
@@ -76,14 +77,12 @@ async def init_db_tables():
         
         from models import Base, User, Post
         
-        # ИСПРАВЛЕНИЕ: инициализируем db с правильным URL
         try:
             await db.init()
         except Exception as db_init_error:
             logger.error(f"⚠️  First init attempt failed: {db_init_error}")
             logger.warning("💡 Retrying with connection timeout...")
             
-            # Retry с явным таймаутом
             try:
                 await asyncio.sleep(2)
                 await db.init()
@@ -98,7 +97,6 @@ async def init_db_tables():
         
         logger.info("✅ Database engine initialized")
         
-        # Создаем таблицы
         try:
             async with db.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
@@ -107,7 +105,6 @@ async def init_db_tables():
             logger.error(f"❌ Failed to create tables: {create_error}")
             return False
         
-        # Проверяем таблицы
         try:
             async with db.get_session() as session:
                 from sqlalchemy import text
@@ -140,7 +137,7 @@ async def init_db_tables():
         logger.error(f"❌ Database error: {e}", exc_info=True)
         logger.warning("⚠️  Bot will run in LIMITED MODE")
         return False
-        
+
 def ignore_budapest_chat_commands(func):
     """Decorator to ignore commands from Budapest chat"""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -263,9 +260,16 @@ async def handle_all_callbacks(update: Update, context):
             pass
 
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Main message handler"""
+    """Main message handler - ИСПРАВЛЕННЫЙ"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
+    
+    # ✅ КРИТИЧНО: Проверяем сначала, ждет ли модератор ввода для модерации
+    # Это должно срабатывать ДО других проверок
+    if context.user_data.get('mod_waiting_for'):
+        logger.info(f"[MODERATION] User {user_id} waiting_for: {context.user_data.get('mod_waiting_for')}")
+        await handle_moderation_text(update, context)
+        return
     
     # Ignore all from Budapest chat EXCEPT message counting
     if chat_id == Config.BUDAPEST_CHAT_ID:
@@ -286,8 +290,8 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await handle_game_media_input(update, context):
             return
         
-        # Moderation text
-        if waiting_for in ['approve_link', 'reject_reason']:
+        # Moderation text - ИСПРАВЛЕНО: проверяем еще раз для надежности
+        if context.user_data.get('mod_waiting_for'):
             await handle_moderation_text(update, context)
             return
         
@@ -429,8 +433,10 @@ def main():
     application.add_handler(CommandHandler("edit", wordedit_command))
     application.add_handler(CommandHandler("wordclear", wordclear_command))
     
-    # Callback and message handlers
+    # ✅ ИСПРАВЛЕНО: Callback handler ПЕРЕД message handler
     application.add_handler(CallbackQueryHandler(handle_all_callbacks))
+    
+    # ✅ КРИТИЧНО: Message handler ПОСЛЕ callback handler
     application.add_handler(MessageHandler(
         filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL,
         handle_messages
