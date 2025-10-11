@@ -348,7 +348,6 @@ async def show_giveaway_stats(query, context, section: str):
     
     records = giveaway_data[section]
     
-    # Названия разделов
     section_names = {
         'daypost': '🏆 TopDayPost',
         'daycomment': '🗣️ TopDayComment',
@@ -366,13 +365,11 @@ async def show_giveaway_stats(query, context, section: str):
     
     title = section_names.get(section, section)
     
-    # Формируем текст со статистикой
     if not records:
         text = f"📊 **{title}**\n\n❌ Еще нет записей"
     else:
         text = f"📊 **{title}** (Всего: {len(records)})\n\n"
-        
-        for record in records[-10:]:  # Показываем последние 10
+        for record in records[-10:]:
             text += (
                 f"📅 {record['date']}\n"
                 f"👤 @{record['winner']}\n"
@@ -380,11 +377,9 @@ async def show_giveaway_stats(query, context, section: str):
                 f"✅ {record['status']}\n\n"
             )
     
-    # Итоговая сумма
     total_sum = 0
     for record in records:
         try:
-            # Извлекаем числовое значение из приза (например, "5$" -> 5)
             prize_str = record['prize'].replace('$', '').strip()
             if prize_str.isdigit():
                 total_sum += int(prize_str)
@@ -402,58 +397,52 @@ async def show_giveaway_stats(query, context, section: str):
         parse_mode='Markdown'
     )
 
-text = (
-    "🪬 **#P2P ПРОДАТЬ/КУПИТЬ КРИПТУ**\n\n"
-    
-    "💡 **Как быстро продать крипту и получить деньги на карту?**\n\n"
-    
-    "🔗 Пример: Binance → Monobank\n"
-    "💱 Пара: USDT / UAH 💸\n\n"
-    
-    "1️⃣ **Зарегистрируй аккаунт**\n"
-    "[🌐 BINANCE](https://accounts.binance.com/en/register?ref=TRIXBONUS)\n"
-    "✅ Подтверди почту и телефон ✉️📲\n\n"
-    
-    "2️⃣ **Пройди верификацию**\n"
-    "🧾 Подтверди личность для P2P\n"
-    "⏱️ Обычно занимает 5–10 минут\n\n"
-    
-    "3️⃣ **Добавь карту Monobank**\n"
-    "💳 Путь: P2P → Платёжные методы → Добавить карту\n"
-    "📝 ФИО должно совпадать с Binance!\n\n"
-    
-    "4️⃣ **Продай крипту**\n"
-    "🔁 Открой P2P → Продать\n"
-    "Выбери:\n"
-    "• Монета: USDT 🪙\n"
-    "• Валюта: UAH 💵\n"
-    "• Оплата: Monobank 💳\n\n"
-    
-    "🔍 **Выбери покупателя с рейтингом 98%+** ⭐\n"
-    "✅ Нажми «Продать USDT»\n\n"
-    
-    "5️⃣ **Получение денег** 💰\n"
-    "💳 Покупатель переведет средства на карту\n"
-    "✅ Подтверди «Оплату получил»\n\n"
-    
-    "⚡️ **Готово!**\n"
-    "✅ Деньги у тебя\n"
-    "🔒 Крипта уходит покупателю\n\n"
-    
-    "📞 Вопросы или помощь? Пиши: @trixilvebot"
-)
 
-keyboard = [
-    [InlineKeyboardButton("🔙 Главное меню", callback_data="menu:back")]
-]
+async def p2p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Основное о P2P"""
+    
+    text = (
+        "🪬 **#P2P ПРОДАТЬ/КУПИТЬ КРИПТУ**\n\n"
+        "💡 **Как быстро продать крипту и получить деньги на карту?**\n\n"
+        "🔗 Пример: Binance → Monobank\n"
+        "💱 Пара: USDT / UAH 💸\n\n"
+        "1️⃣ **Зарегистрируй аккаунт**\n"
+        "[🌐 BINANCE](https://accounts.binance.com/en/register?ref=TRIXBONUS)\n"
+        "✅ Подтверди почту и телефон ✉️📲\n\n"
+        "2️⃣ **Пройди верификацию**\n"
+        "🧾 Подтверди личность для P2P\n"
+        "⏱️ Обычно занимает 5–10 минут\n\n"
+        "3️⃣ **Добавь карту Monobank**\n"
+        "💳 Путь: P2P → Платёжные методы → Добавить карту\n"
+        "📝 ФИО должно совпадать с Binance!\n\n"
+        "4️⃣ **Продай крипту**\n"
+        "🔁 Открой P2P → Продать\n"
+        "Выбери:\n"
+        "• Монета: USDT 🪙\n"
+        "• Валюта: UAH 💵\n"
+        "• Оплата: Monobank 💳\n\n"
+        "🔍 **Выбери покупателя с рейтингом 98%+** ⭐\n"
+        "✅ Нажми «Продать USDT»\n\n"
+        "5️⃣ **Получение денег** 💰\n"
+        "💳 Покупатель переведет средства на карту\n"
+        "✅ Подтверди «Оплату получил»\n\n"
+        "⚡️ **Готово!**\n"
+        "✅ Деньги у тебя\n"
+        "🔒 Крипта уходит покупателю\n\n"
+        "📞 Вопросы или помощь? Пиши: @trixilvebot"
+    )
 
-await update.message.reply_text(
-    text,
-    reply_markup=InlineKeyboardMarkup(keyboard),
-    parse_mode='Markdown'
-)
+    keyboard = [
+        [InlineKeyboardButton("🔙 Главное меню", callback_data="menu:back")]
+    ]
 
-# Функция для добавления записей (для админа)
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
+
+
 async def add_giveaway_record(section: str, winner: str, prize: str, status: str = "Выплачено"):
     """Добавить запись о победителе"""
     if section not in giveaway_data:
@@ -464,6 +453,7 @@ async def add_giveaway_record(section: str, winner: str, prize: str, status: str
     giveaway_data[section].append(record)
     logger.info(f"Added giveaway record: {section} - {winner} - {prize}")
     return True
+
 
 __all__ = [
     'giveaway_command',
