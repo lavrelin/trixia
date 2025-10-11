@@ -390,7 +390,6 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
     data = context.user_data.get('piar_data', {})
     
     try:
-        # ИСПРАВЛЕНО: проверяем доступность БД
         if not db.session_maker:
             logger.error("Database not available for piar")
             await update.callback_query.edit_message_text(
@@ -412,11 +411,14 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
                 )
                 return
             
-            # ИСПРАВЛЕНО: Безопасное создание поста с проверкой всех полей
+            # ИСПРАВЛЕНО: Используем PostStatus правильно
+            from models import PostStatus  # Правильный импорт
+            
+            # Создаем пост пиара
             post_data = {
-                'user_id': int(user_id),  # Явно int
+                'user_id': int(user_id),
                 'category': '🙅 Каталог Услуг',
-                'text': str(data.get('description', ''))[:1000],  # Обрезаем до 1000 символов
+                'text': str(data.get('description', ''))[:1000],
                 'hashtags': ['#Услуги', '#КаталогУслуг'],
                 'is_piar': True,
                 'piar_name': str(data.get('name', ''))[:100] if data.get('name') else None,
@@ -429,20 +431,20 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
                 'piar_description': str(data.get('description', ''))[:1000] if data.get('description') else None,
                 'media': list(data.get('media', [])) if data.get('media') else [],
                 'anonymous': False,
-                'status': PostStatus.PENDING
+                'status': PostStatus.PENDING  # ИСПРАВЛЕНО: используем строку
             }
             
-            # Создаем пост
+            # Create post
             post = Post(**post_data)
             session.add(post)
-            await session.flush()  # ИСПРАВЛЕНО: flush вместо commit для получения ID
+            await session.flush()
             
-            post_id = post.id  # Сохраняем ID
+            post_id = post.id
             logger.info(f"Created piar post with ID: {post_id}")
             
             await session.commit()
             
-            # Обновляем post из сессии
+            # Refresh post
             await session.refresh(post)
             
             # Send to moderation group
@@ -463,7 +465,7 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             else:
                 next_post_time = f"{cooldown_minutes} минут"
             
-            # Show success message with channel promotion
+            # Show success message
             success_keyboard = [
                 [InlineKeyboardButton("🙅‍♂️ Наш канал Будапешт", url="https://t.me/snghu")],
                 [InlineKeyboardButton("🙅 Каталог услуг", url="https://t.me/trixvault")],
@@ -480,7 +482,7 @@ async def send_piar_to_moderation(update: Update, context: ContextTypes.DEFAULT_
             )
             
     except Exception as e:
-        logger.error(f"Error in send_piar_to_moderation: {e}")
+        logger.error(f"Error in send_piar_to_moderation: {e}", exc_info=True)
         await update.callback_query.edit_message_text(
             "🚗 Ошибка при отправке. Попробуйте еще раз /start При повторной неудаче обратитесь к администратору @trixilvebot 💥"
         )
