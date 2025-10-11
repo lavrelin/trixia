@@ -5,15 +5,43 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+async def social_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать социальные сети TRIX"""
+    
+    keyboard = [
+        [InlineKeyboardButton("🧢 Instagram", url="https://www.instagram.com/budapesttrix?igsh=ZXlrNmo4NDdyN2Vz&utm_source=qr")],
+        [InlineKeyboardButton("🔷 Facebook Group", url="https://www.facebook.com/share/g/1EKwURtZ13/?mibextid=wwXIfr")],
+        [InlineKeyboardButton("🌀 Threads", url="https://www.threads.com/@budapesttrix?igshid=NTc4MTIwNjQ2YQ==")],
+        [InlineKeyboardButton("🫆 Telegram DM", url="https://t.me/trixilvebot")],
+        [InlineKeyboardButton("🔙 Главное меню", callback_data="menu:back")]
+    ]
+    
+    text = (
+        "📱 **СОЦИАЛЬНЫЕ СЕТИ TRIX**\n\n"
+        "Присоединяйтесь к нам в социальных сетях:\n\n"
+        
+        "🧢 **Instagram** — фото, stories, актуальные новости (@budapesttrix)\n\n"
+        "🔷 **Facebook Group** — обсуждения, мероприятия, знакомства\n\n"
+        "🌀 **Threads** — короткие посты и общение (@budapesttrix)\n\n"
+        "🫆 **Telegram DM** — личная связь с администрацией\n\n"
+        "👆 Нажмите на кнопку чтобы перейти"
+    )
+    
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='Markdown'
+    )
+
 async def giveaway_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Информация о розыгрышах"""
-
+    
     keyboard = [
         [InlineKeyboardButton("🫦 Полная информация", url="https://t.me/budapestpartners")],
         [InlineKeyboardButton("👄 Канал с розыгрышами", url="https://t.me/budapestpartners")],
         [InlineKeyboardButton("👅 Главное меню", callback_data="menu:back")]
     ]
-
+    
     text = (
         "🔋 **СИСТЕМА РОЗЫГРЫШЕЙ TRIX**\n\n"
         "🧖 **Ежедневно**\n"
@@ -43,14 +71,13 @@ async def giveaway_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• RaidTrix — рекламные сообщения, оплата за пиар 1-5$\n"
         "• Ref — регистрация и верификация, 5$ + TrixTicket\n"
         "• Look — предлагайте свой контент, награды 2-10$\n\n"
-        "🎲 Используй каждый шанс!\n"
+        "🎲 Используй каждый шанс!"
     )
-
+    
     await update.message.reply_text(
         text,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode='Markdown'
     )
 
-
-__all__ = ['giveaway_command']
+__all__ = ['social_command', 'giveaway_command']
