@@ -9,8 +9,7 @@ from telegram.ext import (
 from dotenv import load_dotenv
 from config import Config
 
-# ... [все импорты handlers остаются такими же] ...
-
+# Handlers - Основные
 from handlers.start_handler import start_command
 from handlers.menu_handler import handle_menu_callback
 from handlers.publication_handler import handle_publication_callback, handle_text_input, handle_media_input
@@ -19,6 +18,8 @@ from handlers.moderation_handler import handle_moderation_callback, handle_moder
 from handlers.profile_handler import handle_profile_callback
 from handlers.basic_handler import id_command, participants_command, report_command
 from handlers.link_handler import trixlinks_command
+
+# Handlers - Модерация
 from handlers.moderation_handler import (
     ban_command, unban_command, mute_command, unmute_command,
     banlist_command, stats_command, top_command, lastseen_command
@@ -28,8 +29,12 @@ from handlers.advanced_moderation import (
     noslowmode_command, lockdown_command, antiinvite_command,
     tagall_command, admins_command
 )
+
+# Handlers - Админ
 from handlers.admin_handler import admin_command, say_command, handle_admin_callback, broadcast_command, sendstats_command
 from handlers.autopost_handler import autopost_command, autopost_test_command
+
+# Handlers - Игры
 from handlers.games_handler import (
     wordadd_command, wordedit_command, wordclear_command,
     wordon_command, wordoff_command, wordinfo_command,
@@ -39,11 +44,24 @@ from handlers.games_handler import (
     rollreset_command, rollstatus_command, mynumber_command,
     handle_game_text_input, handle_game_media_input, handle_game_callback
 )
+
+# Handlers - Утилиты
 from handlers.medicine_handler import hp_command, handle_hp_callback
 from handlers.stats_commands import channelstats_command, fullstats_command, resetmsgcount_command, chatinfo_command
 from handlers.help_commands import trix_command, handle_trix_callback
 from handlers.social_handler import social_command, giveaway_command
 from handlers.bonus_handler import bonus_command
+
+# Handlers - Розыгрыши
+from handlers.giveaway_handler import (
+    giveaway_command, handle_giveaway_callback, p2p_command
+)
+from handlers.trixticket_handler import (
+    tickets_command, myticket_command, trixtickets_command,
+    handle_trixticket_callback, givett_command, removett_command,
+    userstt_command, trixticketstart_command, ttrenumber_command,
+    ttsave_command, trixticketclear_command
+)
 
 # Services
 from services.autopost_service import autopost_service
@@ -59,8 +77,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
-
-# ... [все остальные функции из main.py остаются такими же] ...
 
 async def init_db_tables():
     """Initialize database tables with better error handling"""
@@ -157,7 +173,7 @@ def ignore_budapest_chat_commands(func):
     
     return wrapper
 
-# Wrap all commands
+# Wrap all commands with Budapest chat filter
 start_command = ignore_budapest_chat_commands(start_command)
 trix_command = ignore_budapest_chat_commands(trix_command)
 id_command = ignore_budapest_chat_commands(id_command)
@@ -176,6 +192,11 @@ trixlinks_command = ignore_budapest_chat_commands(trixlinks_command)
 social_command = ignore_budapest_chat_commands(social_command)
 giveaway_command = ignore_budapest_chat_commands(giveaway_command)
 bonus_command = ignore_budapest_chat_commands(bonus_command)
+p2p_command = ignore_budapest_chat_commands(p2p_command)
+tickets_command = ignore_budapest_chat_commands(tickets_command)
+myticket_command = ignore_budapest_chat_commands(myticket_command)
+trixtickets_command = ignore_budapest_chat_commands(trixtickets_command)
+
 ban_command = ignore_budapest_chat_commands(ban_command)
 unban_command = ignore_budapest_chat_commands(unban_command)
 mute_command = ignore_budapest_chat_commands(mute_command)
@@ -212,6 +233,15 @@ roll_draw_command = ignore_budapest_chat_commands(roll_draw_command)
 rollreset_command = ignore_budapest_chat_commands(rollreset_command)
 rollstatus_command = ignore_budapest_chat_commands(rollstatus_command)
 mynumber_command = ignore_budapest_chat_commands(mynumber_command)
+
+# Wrap admin TrixTicket commands
+givett_command = ignore_budapest_chat_commands(givett_command)
+removett_command = ignore_budapest_chat_commands(removett_command)
+userstt_command = ignore_budapest_chat_commands(userstt_command)
+trixticketstart_command = ignore_budapest_chat_commands(trixticketstart_command)
+ttrenumber_command = ignore_budapest_chat_commands(ttrenumber_command)
+ttsave_command = ignore_budapest_chat_commands(ttsave_command)
+trixticketclear_command = ignore_budapest_chat_commands(trixticketclear_command)
 
 async def handle_all_callbacks(update: Update, context):
     """Router for all callback queries"""
@@ -250,6 +280,10 @@ async def handle_all_callbacks(update: Update, context):
             await handle_hp_callback(update, context)
         elif handler_type == "trix":
             await handle_trix_callback(update, context)
+        elif handler_type == "giveaway":
+            await handle_giveaway_callback(update, context)
+        elif handler_type == "tt":
+            await handle_trixticket_callback(update, context)
         else:
             await query.answer("⚠️ Неизвестная команда", show_alert=True)
     except Exception as e:
@@ -264,8 +298,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
-    # ✅ КРИТИЧНО: Проверяем сначала, ждет ли модератор ввода для модерации
-    # Это должно срабатывать ДО других проверок
+    # ✅ КРИТИЧНО: Проверяем сначала mod_waiting_for для модерации
     if context.user_data.get('mod_waiting_for'):
         logger.info(f"[MODERATION] User {user_id} waiting_for: {context.user_data.get('mod_waiting_for')}")
         await handle_moderation_text(update, context)
@@ -290,7 +323,7 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await handle_game_media_input(update, context):
             return
         
-        # Moderation text - ИСПРАВЛЕНО: проверяем еще раз для надежности
+        # Moderation text - проверяем еще раз для надежности
         if context.user_data.get('mod_waiting_for'):
             await handle_moderation_text(update, context)
             return
@@ -363,7 +396,9 @@ def main():
     
     logger.info("✅ Services initialized")
     
-    # Register all commands
+    # ============= REGISTER HANDLERS =============
+    
+    # Start and basic commands
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("trix", trix_command))
     application.add_handler(CommandHandler("id", id_command))
@@ -371,9 +406,15 @@ def main():
     application.add_handler(CommandHandler("social", social_command))
     application.add_handler(CommandHandler("giveaway", giveaway_command))
     application.add_handler(CommandHandler("bonus", bonus_command))
+    application.add_handler(CommandHandler("p2p", p2p_command))
     application.add_handler(CommandHandler("trixlinks", trixlinks_command))
     application.add_handler(CommandHandler("participants", participants_command))
     application.add_handler(CommandHandler("report", report_command))
+    
+    # TrixTicket commands - User
+    application.add_handler(CommandHandler("tickets", tickets_command))
+    application.add_handler(CommandHandler("mytt", myticket_command))
+    application.add_handler(CommandHandler("trixtickets", trixtickets_command))
     
     # Admin commands
     application.add_handler(CommandHandler("admin", admin_command))
@@ -432,6 +473,15 @@ def main():
     application.add_handler(CommandHandler("add", wordadd_command))
     application.add_handler(CommandHandler("edit", wordedit_command))
     application.add_handler(CommandHandler("wordclear", wordclear_command))
+    
+    # TrixTicket admin commands
+    application.add_handler(CommandHandler("givett", givett_command))
+    application.add_handler(CommandHandler("removett", removett_command))
+    application.add_handler(CommandHandler("userstt", userstt_command))
+    application.add_handler(CommandHandler("trixticketstart", trixticketstart_command))
+    application.add_handler(CommandHandler("ttrenumber", ttrenumber_command))
+    application.add_handler(CommandHandler("ttsave", ttsave_command))
+    application.add_handler(CommandHandler("trixticketclear", trixticketclear_command))
     
     # ✅ ИСПРАВЛЕНО: Callback handler ПЕРЕД message handler
     application.add_handler(CallbackQueryHandler(handle_all_callbacks))
