@@ -165,27 +165,39 @@ async def show_weekly_menu(query, context):
 async def show_monthly_menu(query, context):
     """Меню ежемесячных розыгрышей"""
     keyboard = [
-        [InlineKeyboardButton("👥 Member", callback_data="giveaway:stats:member")],
+        [InlineKeyboardButton("🤺 Member", callback_data="giveaway:stats:member")],
         [InlineKeyboardButton("🎫 TrixTicket", callback_data="giveaway:stats:trixticket")],
-        [InlineKeyboardButton("🎁 Catalog43X", callback_data="giveaway:stats:catalog43x")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="giveaway:back")]
+        [InlineKeyboardButton("🪟 Catalog43X", callback_data="giveaway:stats:catalog43x")],
+        [InlineKeyboardButton("🚐 Вернуться", callback_data="giveaway:back")]
     ]
     
     text = (
-        "🎁 **ЕЖЕМЕСЯЧНЫЕ РОЗЫГРЫШИ**\n\n"
+    "🗽 **ЕЖЕМЕСЯЧНЫЕ РОЗЫГРЫШИ**\n\n"
+    
+    "🤺 **Member** — 100$. 🎢 10 категорий — 2 победителя в каждой\n"
+    "В конкурсе участвует каждый пользователь, который подписан на Трикса\n\n"
+    
+    "🛗 FB группа: [1](https://www.facebook.com/share/g/17gGRpEWS5/?mibextid=wwXIfr), [2](https://www.facebook.com/share/g/17gGRpEWS5/?mibextid=wwXIfr)\n"
+    "🟦 FB друзья: [3](https://www.facebook.com/share/1YAn2biZfQ/?mibextid=wwXIfr), [4](https://www.facebook.com/share/1BVaDrox47/?mibextid=wwXIfr)\n"
+    "🟧 Instagram: [5](https://www.instagram.com/budapesttrix), [6](https://www.instagram.com/budapesttrix)\n"
+    "🌀 Threads: [7](https://www.threads.net/budapesttrix), [8](https://www.threads.net/budepesttrix)\n"
+    "🙅‍♂️ Будапешт канал: [9](https://t.me/snghu), [10](https://t.me/snghu)\n"
+    "🙅‍♀️ Будапешт чат: [11](https://t.me/tgchatxxx), [12](https://t.me/tgchatxxx)\n"
+    "🕵️‍♂️ Куплю/Отдам/Продам: [13](https://t.me/hungarytrade), [14](https://t.me/hungarytrade)\n"
+    "🙅🏻 Каталог услуг (участник группы): [15](https://t.me/catalogtrix), [16](https://t.me/catalogtrix)\n"
+    "🙅🏼 Каталог услуг (участник каталога): [17](https://t.me/catalogtrix), [18](https://t.me/catalogtrix)\n"
+    "🐦‍🔥 Budapest Partners: [19](https://t.me/budapestpartners), [20](https://t.me/budapestpartners)\n\n"
+    
+    "🎫 **TrixTicket Конкурс** — Уникальные награды\n"
+    "3 победителя из обладателей TrixTicket\n"
+    "Призы: билеты на шоу, ваучеры, крипто\n\n"
+    
+    "📕**Catalog43X** — розыгрыш услуги мастера с нашего каталога\n"
+    "📒 Мы договариваемся с мастерами, запускаем конкурс, победитель получает бесплатный сеанс\n"
+    "📗 Условия: в доработке 💤\n\n"
+)
         
-        "👥 **Member** — 100$ (2 человека × 20 категорий)\n"
-        "Случайные победители из каждой категории сообщества\n\n"
-        
-        "🎫 **TrixTicket Конкурс** — Уникальные награды\n"
-        "3 победителя из обладателей TrixTicket\n"
-        "Призы: билеты на шоу, ваучеры, крипто\n\n"
-        
-        "🎁 **Catalog43X** — Услуга мастера\n"
-        "Случайный мастер из каталога\n"
-        "Результаты через 48 часов\n\n"
-        
-        "💳 Выплата в USDT за 24 часа"
+        "💳 Выплата USDT в течении суток после получения реквизитов от победителя"
     )
     
     await query.edit_message_text(
@@ -197,16 +209,16 @@ async def show_monthly_menu(query, context):
 async def show_tasks_menu(query, context):
     """Меню заданий и монетизации"""
     keyboard = [
-        [InlineKeyboardButton("🟢 Active3x", callback_data="giveaway:stats:active")],
-        [InlineKeyboardButton("💬 RaidTrix", callback_data="giveaway:stats:raidtrix")],
-        [InlineKeyboardButton("🔗 Рефералы", callback_data="giveaway:stats:ref")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="giveaway:back")]
+        [InlineKeyboardButton("📁 Active3x", callback_data="giveaway:stats:active")],
+        [InlineKeyboardButton("🗄️ RaidTrix", callback_data="giveaway:stats:raidtrix")],
+        [InlineKeyboardButton("🔏 Реферальные", callback_data="giveaway:stats:ref")],
+        [InlineKeyboardButton("↩️ Бэк", callback_data="giveaway:back")]
     ]
     
     text = (
-        "💰 **ЗАДАНИЯ И МОНЕТИЗАЦИЯ** (18+)\n\n"
+        "🗃️**ЗАДАНИЯ И МОНЕТИЗАЦИЯ**🔞\n\n"
         
-        "🟢 **Active3x** — 3$\n"
+        "🧨 **Active3x** — 3$\n"
         "Подписка на наши соцсети\n"
         "+ 1 репост + 10 лайков + комментарии\n"
         "Выплата через 5-7 дней\n\n"
