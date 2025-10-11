@@ -1,6 +1,9 @@
 import os
 from dotenv import load_dotenv
 from typing import List, Set
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Загружаем переменные из .env файла (локально)
 load_dotenv()
@@ -15,10 +18,10 @@ class Config:
     
     # Основные каналы
     TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", "-1002743668534"))
-    MODERATION_GROUP_ID = int(os.getenv("MODERATION_GROUP_ID", "-1002734837434"))  # Группа для заявок на публикацию
-    ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-4843909295"))  # Группа для администраторов (уведомления)
+    MODERATION_GROUP_ID = int(os.getenv("MODERATION_GROUP_ID", "-1002734837434"))
+    ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-4843909295"))
     CHAT_FOR_ACTUAL = int(os.getenv("CHAT_FOR_ACTUAL", "-1002734837434"))
-    BUDAPEST_CHAT_ID = int(os.getenv("BUDAPEST_CHAT_ID", "-1002883770818"))  # ✅ ДОБАВЛЕНО: Чат для игнорирования команд
+    BUDAPEST_CHAT_ID = int(os.getenv("BUDAPEST_CHAT_ID", "-1002883770818"))
     
     # Дополнительные каналы
     TRADE_CHANNEL_ID = int(os.getenv("TRADE_CHANNEL_ID", "-1003033694255"))
@@ -37,8 +40,15 @@ class Config:
     
     # ============= БАЗА ДАННЫХ =============
     
-    # Для Railway - автоматически предоставляется DATABASE_URL
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./trixbot.db")
+    # ИСПРАВЛЕНО: Правильное получение DATABASE_URL с логированием
+    _raw_db_url = os.getenv("DATABASE_URL")
+    
+    if not _raw_db_url:
+        logger.warning("⚠️ DATABASE_URL not set! Using SQLite fallback")
+        DATABASE_URL = "sqlite:///./trixbot.db"
+    else:
+        DATABASE_URL = _raw_db_url
+        logger.info(f"✅ DATABASE_URL set: {DATABASE_URL[:40]}...")
     
     # ============= ПРАВА ДОСТУПА =============
     
@@ -108,6 +118,9 @@ class Config:
         if not cls.BOT_TOKEN:
             errors.append("❌ BOT_TOKEN не задан")
         
+        if not cls.DATABASE_URL or cls.DATABASE_URL == "sqlite:///./trixbot.db":
+            errors.append("⚠️ DATABASE_URL не задан или используется SQLite (локальное хранилище)")
+        
         if not cls.ADMIN_IDS:
             errors.append("⚠️ ADMIN_IDS не заданы")
         
@@ -119,11 +132,16 @@ class Config:
     @classmethod
     def get_info(cls) -> str:
         """Возвращает информацию о конфигурации"""
+        db_type = "PostgreSQL" if "postgresql" in cls.DATABASE_URL else (
+            "MySQL" if "mysql" in cls.DATABASE_URL else "SQLite"
+        )
+        
         return f"""
 📋 КОНФИГУРАЦИЯ БОТА
 
 🤖 Основное:
 • Bot Token: {'✅ Установлен' if cls.BOT_TOKEN else '❌ Не установлен'}
+• Database: {db_type} ({'✅ Облако' if "postgresql" in cls.DATABASE_URL or "mysql" in cls.DATABASE_URL else '⚠️ Локальная'})
 
 📢 Группы и каналы:
 • Канал публикаций: {cls.TARGET_CHANNEL_ID}
@@ -153,8 +171,8 @@ class Config:
 if __name__ != "__main__":
     config_errors = Config.validate_config()
     if config_errors:
-        print("🚨 Ошибки конфигурации:")
+        logger.warning("🚨 Проблемы конфигурации:")
         for error in config_errors:
-            print(f"  {error}")
+            logger.warning(f"  {error}")
     else:
-        print("✅ Конфигурация валидна")
+        logger.info("✅ Конфигурация валидна")
