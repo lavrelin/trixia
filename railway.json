@@ -1,12 +1,40 @@
-{
-  "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "numReplicas": 1,
-    "sleepApplication": false,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
-  }
-}
+#!/bin/bash
+# Railway Initialization Script
+
+echo "🚀 Starting TrixBot on Railway..."
+echo ""
+
+# Проверяем переменные окружения
+echo "🔍 Checking environment variables..."
+
+if [ -z "$BOT_TOKEN" ]; then
+    echo "❌ ERROR: BOT_TOKEN is not set"
+    echo "   Please set BOT_TOKEN in Railway variables"
+    exit 1
+fi
+
+if [ -z "$DATABASE_URL" ]; then
+    echo "⚠️  WARNING: DATABASE_URL is not set"
+    echo "   Using SQLite fallback"
+    echo "   To use PostgreSQL:"
+    echo "   1. Add PostgreSQL plugin in Railway"
+    echo "   2. Redeploy project"
+else
+    echo "✅ DATABASE_URL is set"
+    DB_TYPE=$(echo $DATABASE_URL | grep -o 'postgresql\|sqlite\|mysql' | head -1)
+    echo "   Type: $DB_TYPE"
+fi
+
+echo ""
+echo "🔄 Running database initialization..."
+python init_db.py
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "⚠️  Database initialization had issues"
+    echo "   Continuing with bot startup..."
+fi
+
+echo ""
+echo "🤖 Starting TrixBot..."
+python main.py
