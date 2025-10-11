@@ -387,19 +387,26 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 return
             
             # ИСПРАВЛЕНО: Используем PostStatus.PENDING вместо PostStatus.PENDING
-            from models import PostStatus  # Правильный импорт
-            
-            create_post_data = {
-                'user_id': int(user_id),
-                'category': str(post_data.get('category', ''))[:255] if post_data.get('category') else None,
-                'subcategory': str(post_data.get('subcategory', ''))[:255] if post_data.get('subcategory') else None,
-                'text': str(post_data.get('text', ''))[:4096] if post_data.get('text') else None,
-                'hashtags': list(post_data.get('hashtags', [])),
-                'anonymous': bool(post_data.get('anonymous', False)),
-                'media': list(post_data.get('media', [])),
-                'status': PostStatus.PENDING,  # ИСПРАВЛЕНО: используем строку
-                'is_piar': False
-            }
+            from models import Post, PostStatus
+
+post_data = {
+    'user_id': int(user_id),
+    'category': '🙅 Каталог Услуг',
+    'text': str(data.get('description', ''))[:1000] if data.get('description') else None,
+    'hashtags': ['#Услуги', '#КаталогУслуг'],
+    'is_piar': True,
+    'piar_name': str(data.get('name', ''))[:100] if data.get('name') else None,
+    'piar_profession': str(data.get('profession', ''))[:100] if data.get('profession') else None,
+    'piar_districts': list(data.get('districts', [])) if data.get('districts') else [],
+    'piar_phone': str(data.get('phone', ''))[:50] if data.get('phone') else None,
+    'piar_price': str(data.get('price', ''))[:100] if data.get('price') else None,
+    'piar_instagram': str(data.get('instagram', ''))[:100] if data.get('instagram') else None,
+    'piar_telegram': str(data.get('telegram', ''))[:100] if data.get('telegram') else None,
+    'piar_description': str(data.get('description', ''))[:1000] if data.get('description') else None,
+    'media': list(data.get('media', [])) if data.get('media') else [],
+    'anonymous': False,
+    'status': PostStatus.PENDING  # ✅ Исправлено
+}
             
             # Create post
             post = Post(**create_post_data)
