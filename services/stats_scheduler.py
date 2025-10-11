@@ -1,14 +1,28 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from config import Config
+import pytz
 
 logger = logging.getLogger(__name__)
 
+# Timezone Будапешта
+BUDAPEST_TZ = pytz.timezone('Europe/Budapest')
+
+# Времена отправки статистики (Будапешт)
+STATS_TIMES_BUDAPEST = [
+    (9, 6),      # 09:06
+    (15, 16),    # 15:16
+    (23, 23),    # 23:23
+    (21, 11),    # 21:11
+    (3, 45),     # 03:45
+    (11, 18),    # 11:18
+]
+
 class StatsScheduler:
-    """Планировщик автоматической статистики - ИСПРАВЛЕНО"""
+    """Планировщик автоматической статистики с фиксированными временами"""
     
     def __init__(self):
         self.task: Optional[asyncio.Task] = None
@@ -35,6 +49,11 @@ class StatsScheduler:
         self._stop_event.clear()
         self.task = asyncio.create_task(self._stats_loop())
         logger.info("Stats scheduler started")
+        
+        # Логируем расписание
+        logger.info(f"📅 Statistics schedule (Budapest timezone):")
+        for hour, minute in STATS_TIMES_BUDAPEST:
+            logger.info(f"  ⏰ {hour:02d}:{minute:02d}")
     
     async def stop(self):
         """Остановить планировщик корректно"""
@@ -64,62 +83,58 @@ class StatsScheduler:
         logger.info("Stats scheduler stopped")
     
     async def _stats_loop(self):
-        """Основной цикл отправки статистики - ИСПРАВЛЕНО"""
-        logger.info(f"Stats loop started, interval: {Config.STATS_INTERVAL_HOURS}h")
+        """Основной цикл отправки статистики"""
+        logger.info("Stats loop started")
         
         try:
-            # Первая отправка через 1 минуту после запуска
-            try:
-                await asyncio.wait_for(
-                    self._stop_event.wait(),
-                    timeout=60
-                )
-                # Если _stop_event сработал - выходим
-                if not self.running:
-                    logger.info("Stats loop stopped before first run")
-                    return
-            except asyncio.TimeoutError:
-                # Timeout - нормально, продолжаем
-                pass
-            
-            # Отправляем первую статистику
-            if self.running:
-                try:
-                    await self.admin_notifications.send_statistics()
-                    logger.info("First statistics sent")
-                except Exception as e:
-                    logger.error(f"Error sending first statistics: {e}")
-            
-            # Основной цикл
-            interval_seconds = Config.STATS_INTERVAL_HOURS * 3600
-            
             while self.running:
                 try:
-                    # Ждём интервал или stop event
-                    await asyncio.wait_for(
-                        self._stop_event.wait(),
-                        timeout=interval_seconds
-                    )
+                    # Получаем текущее время в Будапеште
+                    budapest_now = datetime.now(BUDAPEST_TZ)
+                    current_hour = budapest_now.hour
+                    current_minute = budapest_now.minute
                     
-                    # Если stop event сработал - выходим
-                    if not self.running:
-                        logger.info("Stats loop received stop signal")
-                        break
+                    # Проверяем, совпадает ли текущее время с расписанием
+                    should_send = False
+                    for scheduled_hour, scheduled_minute in STATS_TIMES_BUDAPEST:
+                        if current_hour == scheduled_hour and current_minute == scheduled_minute:
+                            should_send = True
+                            break
+                    
+                    if should_send and self.running:
+                        logger.info(f"⏰ Stats time reached: {current_hour:02d}:{current_minute:02d} Budapest")
+                        try:
+                            await self.admin_notifications.send_statistics()
+                            logger.info("✅ Statistics sent successfully")
+                        except Exception as e:
+                            logger.error(f"Error sending statistics: {e}")
                         
-                except asyncio.TimeoutError:
-                    # Timeout - пора отправлять статистику
-                    if not self.running:
-                        break
+                        # Ждём 2 минуты чтобы не отправить статистику дважды
+                        await asyncio.sleep(120)
                     
+                    # Проверяем каждые 30 секунд
                     try:
-                        await self.admin_notifications.send_statistics()
-                        logger.info("Scheduled statistics sent")
-                    except Exception as e:
-                        logger.error(f"Error sending statistics: {e}")
-                        # Продолжаем работу даже если ошибка
-                
+                        await asyncio.wait_for(
+                            self._stop_event.wait(),
+                            timeout=30
+                        )
+                        # Если stop event сработал - выходим
+                        if not self.running:
+                            logger.info("Stats loop received stop signal")
+                            break
+                    except asyncio.TimeoutError:
+                        # Timeout - нормально, продолжаем
+                        pass
+                    
+                except asyncio.CancelledError:
+                    logger.info("Stats loop cancelled")
+                    raise
+                except Exception as e:
+                    logger.error(f"Error in stats loop: {e}")
+                    await asyncio.sleep(60)
+                    
         except asyncio.CancelledError:
-            logger.info("Stats loop cancelled")
+            logger.info("Stats loop cancelled (outer)")
             raise
         except Exception as e:
             logger.error(f"Unexpected error in stats loop: {e}", exc_info=True)
@@ -143,6 +158,26 @@ class StatsScheduler:
         except Exception as e:
             logger.error(f"Error sending stats: {e}")
             return False
+    
+    def get_next_stats_time(self) -> str:
+        """Получить время следующей статистики"""
+        budapest_now = datetime.now(BUDAPEST_TZ)
+        current_hour = budapest_now.hour
+        current_minute = budapest_now.minute
+        
+        # Находим следующее время из расписания
+        next_time = None
+        for hour, minute in sorted(STATS_TIMES_BUDAPEST):
+            if (hour > current_hour) or (hour == current_hour and minute > current_minute):
+                next_time = (hour, minute)
+                break
+        
+        # Если нет времени сегодня, берём первое время завтра
+        if not next_time:
+            next_time = sorted(STATS_TIMES_BUDAPEST)[0]
+            return f"Завтра в {next_time[0]:02d}:{next_time[1]:02d}"
+        
+        return f"Сегодня в {next_time[0]:02d}:{next_time[1]:02d}"
 
 # Глобальный экземпляр планировщика
 stats_scheduler = StatsScheduler()
