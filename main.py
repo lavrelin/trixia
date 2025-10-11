@@ -9,34 +9,44 @@ from telegram.ext import (
 from dotenv import load_dotenv
 from config import Config
 
-# Handlers - Основные
+# ============= HANDLERS - ОСНОВНЫЕ =============
 from handlers.start_handler import start_command
 from handlers.menu_handler import handle_menu_callback
 from handlers.publication_handler import handle_publication_callback, handle_text_input, handle_media_input
 from handlers.piar_handler import handle_piar_callback, handle_piar_text, handle_piar_photo
-from handlers.moderation_handler import handle_moderation_callback, handle_moderation_text
+from handlers.moderation_handler import (
+    handle_moderation_callback,
+    handle_moderation_text,
+    ban_command,
+    unban_command,
+    mute_command,
+    unmute_command,
+    banlist_command,
+    stats_command,
+    top_command,
+    lastseen_command
+)
 from handlers.profile_handler import handle_profile_callback
 from handlers.basic_handler import id_command, participants_command, report_command
 from handlers.link_handler import trixlinks_command
 
-from handlers.moderation_handler import (
-    handle_moderation_callback,
-    handle_moderation_text,
-    ban_command, 
-    unban_command, 
-    mute_command, 
-    unmute_command,
-    banlist_command, 
-    stats_command, 
-    top_command, 
-    lastseen_command
+# ============= HANDLERS - ПРОДВИНУТАЯ МОДЕРАЦИЯ =============
+from handlers.advanced_moderation import (
+    del_command,
+    purge_command,
+    slowmode_command,
+    noslowmode_command,
+    lockdown_command,
+    antiinvite_command,
+    tagall_command,
+    admins_command
 )
 
-# Handlers - Админ
+# ============= HANDLERS - АДМИН =============
 from handlers.admin_handler import admin_command, say_command, handle_admin_callback, broadcast_command, sendstats_command
 from handlers.autopost_handler import autopost_command, autopost_test_command
 
-# Handlers - Игры
+# ============= HANDLERS - ИГРЫ =============
 from handlers.games_handler import (
     wordadd_command, wordedit_command, wordclear_command,
     wordon_command, wordoff_command, wordinfo_command,
@@ -47,14 +57,14 @@ from handlers.games_handler import (
     handle_game_text_input, handle_game_media_input, handle_game_callback
 )
 
-# Handlers - Утилиты
+# ============= HANDLERS - УТИЛИТЫ =============
 from handlers.medicine_handler import hp_command, handle_hp_callback
 from handlers.stats_commands import channelstats_command, fullstats_command, resetmsgcount_command, chatinfo_command
 from handlers.help_commands import trix_command, handle_trix_callback
 from handlers.social_handler import social_command, giveaway_command
 from handlers.bonus_handler import bonus_command
 
-# Handlers - Розыгрыши
+# ============= HANDLERS - РОЗЫГРЫШИ =============
 from handlers.giveaway_handler import (
     giveaway_command, handle_giveaway_callback, p2p_command
 )
@@ -65,7 +75,7 @@ from handlers.trixticket_handler import (
     ttsave_command, trixticketclear_command
 )
 
-# Services
+# ============= SERVICES =============
 from services.autopost_service import autopost_service
 from services.admin_notifications import admin_notifications
 from services.stats_scheduler import stats_scheduler
