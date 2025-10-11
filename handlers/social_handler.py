@@ -44,7 +44,6 @@ async def giveaway_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Ref — регистрация и верификация, 5$ + TrixTicket\n"
         "• Look — предлагайте свой контент, награды 2-10$\n\n"
         "🎲 Используй каждый шанс!\n"
-        "Все обновления, результаты, статистика победителей: https://t.me/budapestpartners"
     )
 
     await update.message.reply_text(
