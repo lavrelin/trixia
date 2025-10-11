@@ -27,16 +27,22 @@ class Config:
     TRADE_CHANNEL_ID = int(os.getenv("TRADE_CHANNEL_ID", "-1003033694255"))
     BUDAPEST_CHANNEL = os.getenv("BUDAPEST_CHANNEL", "https://t.me/snghu")
     BUDAPEST_CHAT = os.getenv("BUDAPEST_CHAT", "https://t.me/tgchatxxx")
-    CATALOG_CHANNEL = os.getenv("CATALOG_CHANNEL", "https://t.me/trixvault")
+    CATALOG_CHANNEL = os.getenv("CATALOG_CHANNEL", "https://t.me/catalogtrix")
     TRADE_CHANNEL = os.getenv("TRADE_CHANNEL", "https://t.me/hungarytrade")
 
-    # НОВОЕ: Каналы для мониторинга статистики
+    # ============= КАНАЛЫ ДЛЯ МОНИТОРИНГА СТАТИСТИКИ =============
+    # Расширенный список всех каналов
     STATS_CHANNELS = {
-        'budapest_channel': int(os.getenv("BUDAPEST_CHANNEL_ID", "-1002743668534")),
-        'budapest_chat': int(os.getenv("BUDAPEST_CHAT_ID", "-1002734837434")),
-        'catalog_channel': int(os.getenv("CATALOG_CHANNEL_ID", "-1002743668534")),
-        'trade_channel': int(os.getenv("TRADE_CHANNEL_ID", "-1003033694255"))
+        'gambling_chat': int(os.getenv("GAMBLING_CHAT_ID", "-1002922212434")),          # 🐦‍🔥 Gambling chat
+        'catalog': int(os.getenv("CATALOG_ID", "-1002601716810")),                      # 🙅 Каталог услуг
+        'trade': int(os.getenv("TRADE_ID", "-1003033694255")),                          # 🕵️‍♂️ Куплю/Отдам/Продам
+        'budapest_main': int(os.getenv("BUDAPEST_MAIN_ID", "-1002743668534")),          # 🙅‍♂️ Будапешт канал
+        'budapest_chat': int(os.getenv("BUDAPEST_CHAT_STATS_ID", "-1002883770818")),    # 🙅‍♀️ Будапешт чат
+        'partners': int(os.getenv("PARTNERS_ID", "-1002919380244")),                    # 🧶 Budapest Partners
     }
+    
+    # Альтернативные каналы (если нужны)
+    BUDAPEST_PLAY_ID = int(os.getenv("BUDAPEST_PLAY_ID", "0"))  # 🐦‍🔥 BUDAPEST PLAY
     
     # ============= БАЗА ДАННЫХ =============
     
@@ -70,7 +76,9 @@ class Config:
     
     # ============= СТАТИСТИКА =============
     
-    STATS_INTERVAL_HOURS = int(os.getenv("STATS_INTERVAL_HOURS", "8"))  # Каждые 8 часов
+    # Интервал между автоматической статистикой (в часах)
+    # НОВОЕ: Теперь используется STATS_TIMES_BUDAPEST вместо интервала
+    STATS_INTERVAL_HOURS = int(os.getenv("STATS_INTERVAL_HOURS", "8"))  # Резервный параметр
     
     # ============= СООБЩЕНИЯ ПО УМОЛЧАНИЮ =============
     
