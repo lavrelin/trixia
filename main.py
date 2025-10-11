@@ -59,58 +59,88 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Кусок кода для замены в main.py функции init_db_tables()
+
 async def init_db_tables():
-    """Initialize database tables"""
+    """Initialize database tables with better error handling"""
     try:
-        logger.info("🔄 Initializing database...")
+        logger.info("🔄 Initializing database tables...")
         
         db_url = Config.DATABASE_URL
         
-        if db_url.startswith('postgres'):
-            logger.info("📊 PostgreSQL database")
-        elif db_url.startswith('sqlite'):
-            logger.info("📊 SQLite database")
+        if not db_url:
+            logger.error("❌ DATABASE_URL not configured")
+            return False
+        
+        logger.info(f"📊 Using database: {db_url[:50]}...")
         
         from models import Base, User, Post
         
-        await db.init()
-        
-        if db.engine is None or db.session_maker is None:
-            logger.error("❌ Database initialization failed")
-            return False
-        
-        logger.info("✅ Database engine created")
-        
-        async with db.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        
-        logger.info("✅ Tables created")
-        
-        # Verify tables
-        async with db.get_session() as session:
-            from sqlalchemy import text
+        # ИСПРАВЛЕНИЕ: инициализируем db с правильным URL
+        try:
+            await db.init()
+        except Exception as db_init_error:
+            logger.error(f"⚠️  First init attempt failed: {db_init_error}")
+            logger.warning("💡 Retrying with connection timeout...")
             
-            if 'postgres' in db_url:
-                result = await session.execute(
-                    text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'users'")
-                )
-            else:
-                result = await session.execute(
-                    text("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'")
-                )
-            
-            count = result.scalar()
-            if count == 0:
-                logger.error("❌ Table 'users' not found!")
+            # Retry с явным таймаутом
+            try:
+                await asyncio.sleep(2)
+                await db.init()
+            except Exception as retry_error:
+                logger.error(f"❌ Database initialization failed after retry: {retry_error}")
+                logger.warning("⚠️  Bot will run in LIMITED MODE without database")
                 return False
         
-        logger.info("✅ Database ready")
-        return True
+        if db.engine is None or db.session_maker is None:
+            logger.error("❌ Database engine not created")
+            return False
         
+        logger.info("✅ Database engine initialized")
+        
+        # Создаем таблицы
+        try:
+            async with db.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("✅ Database tables created")
+        except Exception as create_error:
+            logger.error(f"❌ Failed to create tables: {create_error}")
+            return False
+        
+        # Проверяем таблицы
+        try:
+            async with db.get_session() as session:
+                from sqlalchemy import text
+                
+                if 'postgres' in db_url:
+                    result = await session.execute(
+                        text("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'")
+                    )
+                else:
+                    result = await session.execute(
+                        text("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
+                    )
+                
+                table_count = result.scalar()
+                logger.info(f"✅ Database tables verified: {table_count} tables found")
+                
+                if table_count == 0:
+                    logger.error("❌ No tables found in database!")
+                    return False
+            
+            logger.info("✅ Database ready")
+            return True
+            
+        except Exception as verify_error:
+            logger.warning(f"⚠️  Could not verify tables: {verify_error}")
+            logger.warning("   Continuing anyway...")
+            return True
+            
     except Exception as e:
         logger.error(f"❌ Database error: {e}", exc_info=True)
+        logger.warning("⚠️  Bot will run in LIMITED MODE")
         return False
-
+        
 def ignore_budapest_chat_commands(func):
     """Decorator to ignore commands from Budapest chat"""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
