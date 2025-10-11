@@ -1,29 +1,18 @@
-from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Boolean, Text, JSON, Enum
+from sqlalchemy import Column, Integer, BigInteger, String, DateTime, Boolean, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from datetime import datetime
-import enum
 
 Base = declarative_base()
-
-class Gender(enum.Enum):
-    MALE = "male"
-    FEMALE = "female"
-    UNKNOWN = "unknown"
-
-class PostStatus(enum.Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
 
 class User(Base):
     __tablename__ = 'users'
     
-    id = Column(BigInteger, primary_key=True)  # ИЗМЕНЕНО: BigInteger для Telegram ID
+    id = Column(BigInteger, primary_key=True)
     username = Column(String(255))
     first_name = Column(String(255))
     last_name = Column(String(255))
-    gender = Column(Enum(Gender), default=Gender.UNKNOWN)
+    gender = Column(String(50), default='unknown')  # ИСПРАВЛЕНИЕ: String вместо Enum
     referral_code = Column(String(255), unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -35,11 +24,11 @@ class Post(Base):
     category = Column(String(255))
     subcategory = Column(String(255))
     text = Column(Text)
-    media = Column(JSON, default=list)  # ИСПРАВЛЕНО: default=list
-    hashtags = Column(JSON, default=list)  # ИСПРАВЛЕНО: default=list
+    media = Column(JSON, default=list)
+    hashtags = Column(JSON, default=list)
     anonymous = Column(Boolean, default=False)
-    status = Column(Enum(PostStatus), default=PostStatus.PENDING)
-    moderation_message_id = Column(BigInteger)  # ИСПРАВЛЕНО: BigInteger для больших ID
+    status = Column(String(50), default='pending')  # ИСПРАВЛЕНИЕ: String вместо Enum
+    moderation_message_id = Column(BigInteger)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Piar specific fields
@@ -48,7 +37,22 @@ class Post(Base):
     piar_profession = Column(String(255), nullable=True)
     piar_districts = Column(JSON, default=list, nullable=True)
     piar_phone = Column(String(255), nullable=True)
-    piar_instagram = Column(String(255), nullable=True)  
-    piar_telegram = Column(String(255), nullable=True)   
+    piar_instagram = Column(String(255), nullable=True)
+    piar_telegram = Column(String(255), nullable=True)
     piar_price = Column(String(255), nullable=True)
-    piar_description = Column(Text, nullable=True)  # ДОБАВЛЕНО: отдельное поле для описания
+    piar_description = Column(Text, nullable=True)
+
+# УДАЛЕНО: Enum классы Gender и PostStatus - они вызывают ошибку с SQLAlchemy
+# Используем обычные String значения вместо этого
+
+# Константы для status
+class PostStatus:
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+
+# Константы для gender
+class Gender:
+    MALE = 'male'
+    FEMALE = 'female'
+    UNKNOWN = 'unknown'
