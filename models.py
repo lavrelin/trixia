@@ -6,16 +6,16 @@ from enum import Enum
 
 Base = declarative_base()
 
-# ✅ НОВОЕ: Правильное определение статусов
-class PostStatus(str, Enum):
-    PENDING = 'pending'
-    APPROVED = 'approved'
-    REJECTED = 'rejected'
-
+# ✅ ИСПРАВЛЕНО: Правильное определение enum с заглавными буквами
 class Gender(str, Enum):
-    MALE = 'male'
-    FEMALE = 'female'
-    UNKNOWN = 'unknown'
+    MALE = 'MALE'           # ← Было 'male', стало 'MALE'
+    FEMALE = 'FEMALE'       # ← Было 'female', стало 'FEMALE'
+    UNKNOWN = 'UNKNOWN'     # ← Было 'unknown', стало 'UNKNOWN'
+
+class PostStatus(str, Enum):
+    PENDING = 'PENDING'
+    APPROVED = 'APPROVED'
+    REJECTED = 'REJECTED'
 
 class User(Base):
     __tablename__ = 'users'
@@ -24,7 +24,7 @@ class User(Base):
     username = Column(String(255))
     first_name = Column(String(255))
     last_name = Column(String(255))
-    gender = Column(SQLEnum(Gender), default=Gender.UNKNOWN)  # ✅ ИСПРАВЛЕНО
+    gender = Column(SQLEnum(Gender), default=Gender.UNKNOWN)
     referral_code = Column(String(255), unique=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -39,7 +39,7 @@ class Post(Base):
     media = Column(JSON, default=list)
     hashtags = Column(JSON, default=list)
     anonymous = Column(Boolean, default=False)
-    status = Column(SQLEnum(PostStatus), default=PostStatus.PENDING)  # ✅ ИСПРАВЛЕНО
+    status = Column(SQLEnum(PostStatus), default=PostStatus.PENDING)
     moderation_message_id = Column(BigInteger)
     created_at = Column(DateTime, default=datetime.utcnow)
     
@@ -53,7 +53,3 @@ class Post(Base):
     piar_telegram = Column(String(255), nullable=True)
     piar_price = Column(String(255), nullable=True)
     piar_description = Column(Text, nullable=True)
-
-# ❌ УДАЛИТЬ эти классы в конце:
-# class PostStatus:
-# class Gender:
