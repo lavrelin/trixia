@@ -412,20 +412,84 @@ async def handle_reset_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
     else:
         await query.edit_message_text("❌ Отменено")
+        # Добавьте эти функции в конец handlers/rating_handler.py (перед __all__)
+
+async def handle_rate_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle moderation callbacks for rating posts"""
+    query = update.callback_query
+    await query.answer()
+    
+    data = query.data.split(":")
+    action = data[1] if len(data) > 1 else None
+    post_id = int(data[2]) if len(data) > 2 and data[2].isdigit() else None
+    
+    if not Config.is_moderator(update.effective_user.id):
+        await query.answer("❌ Доступ запрещен", show_alert=True)
+        return
+    
+    if action == "approve":
+        await approve_rating_post(update, context, post_id)
+    elif action == "reject":
+        await reject_rating_post(update, context, post_id)
+
+async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Approve rating post and publish it"""
+    query = update.callback_query
+    
+    if post_id not in rating_data['posts']:
+        await query.answer("❌ Пост не найден", show_alert=True)
+        return
+    
+    post = rating_data['posts'][post_id]
+    
+    try:
+        await query.answer("✅ Пост одобрен!")
+        await query.edit_message_reply_markup(reply_markup=None)
+        
+        logger.info(f"Rating post {post_id} approved by {update.effective_user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error approving rating post: {e}")
+        await query.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+async def reject_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
+    """Reject rating post"""
+    query = update.callback_query
+    
+    if post_id not in rating_data['posts']:
+        await query.answer("❌ Пост не найден", show_alert=True)
+        return
+    
+    post = rating_data['posts'][post_id]
+    
+    try:
+        await query.answer("❌ Пост отклонен")
+        await query.edit_message_reply_markup(reply_markup=None)
+        
+        # Удаляем пост из памяти
+        if post_id in rating_data['posts']:
+            del rating_data['posts'][post_id]
+        
+        logger.info(f"Rating post {post_id} rejected by {update.effective_user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error rejecting rating post: {e}")
+        await query.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+# ============= ОБНОВИТЕ __all__ =============
+# Замените существующий __all__ на:
 
 __all__ = [
     'rate_start_command',
     'handle_rate_photo',
     'handle_rate_profile',
     'handle_rate_callback',
+    'handle_rate_moderation_callback',
     'toppeople_command',
     'topboys_command',
     'topgirls_command',
     'toppeoplereset_command',
-    'handle_reset_callback',
     'publish_rate_post',
-    'send_rating_to_moderation',
-    'handle_rate_moderation_callback',
     'approve_rating_post',
     'reject_rating_post',
     'rating_data'
