@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from config import Config
 
 # ============= HANDLERS - ОСНОВНЫЕ =============
-from handlers.start_handler import start_command
+from handlers.start_handler import start_command, help_command, show_main_menu, show_write_menu
 from handlers.menu_handler import handle_menu_callback
 from handlers.publication_handler import handle_publication_callback, handle_text_input, handle_media_input
 from handlers.piar_handler import handle_piar_callback, handle_piar_text, handle_piar_photo
@@ -58,8 +58,9 @@ from handlers.games_handler import (
 )
 from handlers.rating_handler import (
     rate_start_command, toppeople_command, topboys_command, 
-    topgirls_command, toppeoplereset_command
+    topgirls_command, toppeoplereset_command, handle_rate_callback
 )
+
 # ============= HANDLERS - УТИЛИТЫ =============
 from handlers.medicine_handler import hp_command, handle_hp_callback
 from handlers.stats_commands import channelstats_command, fullstats_command, resetmsgcount_command, chatinfo_command
@@ -249,6 +250,13 @@ rollreset_command = ignore_budapest_chat_commands(rollreset_command)
 rollstatus_command = ignore_budapest_chat_commands(rollstatus_command)
 mynumber_command = ignore_budapest_chat_commands(mynumber_command)
 
+# Wrap rating commands
+rate_start_command = ignore_budapest_chat_commands(rate_start_command)
+toppeople_command = ignore_budapest_chat_commands(toppeople_command)
+topboys_command = ignore_budapest_chat_commands(topboys_command)
+topgirls_command = ignore_budapest_chat_commands(topgirls_command)
+toppeoplereset_command = ignore_budapest_chat_commands(toppeoplereset_command)
+
 # Wrap admin TrixTicket commands
 givett_command = ignore_budapest_chat_commands(givett_command)
 removett_command = ignore_budapest_chat_commands(removett_command)
@@ -299,6 +307,8 @@ async def handle_all_callbacks(update: Update, context):
             await handle_giveaway_callback(update, context)
         elif handler_type == "tt":
             await handle_trixticket_callback(update, context)
+        elif handler_type == "rate":
+            await handle_rate_callback(update, context)
         else:
             await query.answer("⚠️ Неизвестная команда", show_alert=True)
     except Exception as e:
@@ -351,6 +361,17 @@ async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 field = waiting_for.replace('piar_', '')
                 text = update.message.text or update.message.caption
                 await handle_piar_text(update, context, field, text)
+            return
+        
+        # Rating handlers
+        if waiting_for == 'rate_photo':
+            from handlers.rating_handler import handle_rate_photo
+            await handle_rate_photo(update, context)
+            return
+        
+        if waiting_for == 'rate_profile':
+            from handlers.rating_handler import handle_rate_profile
+            await handle_rate_profile(update, context)
             return
         
         # Media for posts
@@ -415,6 +436,7 @@ def main():
     
     # Start and basic commands
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("trix", trix_command))
     application.add_handler(CommandHandler("id", id_command))
     application.add_handler(CommandHandler("hp", hp_command))
@@ -489,6 +511,13 @@ def main():
     application.add_handler(CommandHandler("edit", wordedit_command))
     application.add_handler(CommandHandler("wordclear", wordclear_command))
     
+    # Rating commands
+    application.add_handler(CommandHandler("ratestart", rate_start_command))
+    application.add_handler(CommandHandler("toppeople", toppeople_command))
+    application.add_handler(CommandHandler("topboys", topboys_command))
+    application.add_handler(CommandHandler("topgirls", topgirls_command))
+    application.add_handler(CommandHandler("toppeoplereset", toppeoplereset_command))
+    
     # TrixTicket admin commands
     application.add_handler(CommandHandler("givett", givett_command))
     application.add_handler(CommandHandler("removett", removett_command))
@@ -506,37 +535,9 @@ def main():
         filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL,
         handle_messages
     ))
-    # В раздел HANDLERS - ИГРЫ
-from handlers.rating_handler import (
-    rate_start_command, toppeople_command, topboys_command, 
-    topgirls_command, toppeoplereset_command
-)
-
-# В раздел регистрации команд
-application.add_handler(CommandHandler("ratestart", rate_start_command))
-application.add_handler(CommandHandler("toppeople", toppeople_command))
-application.add_handler(CommandHandler("topboys", topboys_command))
-application.add_handler(CommandHandler("topgirls", topgirls_command))
-application.add_handler(CommandHandler("toppeoplereset", toppeoplereset_command))
-
-# В обработчик сообщений - добавьте проверку фото для рейтинга
-if context.user_data.get('waiting_for') == 'rate_photo':
-    from handlers.rating_handler import handle_rate_photo
-    await handle_rate_photo(update, context)
-    return
-
-if context.user_data.get('waiting_for') == 'rate_profile':
-    from handlers.rating_handler import handle_rate_profile
-    await handle_rate_profile(update, context)
-    return
     
     application.add_error_handler(error_handler)
-    application.add_handler(CommandHandler("ratestart", rate_start_command))
-    application.add_handler(CommandHandler("toppeople", toppeople_command))
-    application.add_handler(CommandHandler("topboys", topboys_command))
-    application.add_handler(CommandHandler("topgirls", topgirls_command))
-    application.add_handler(CommandHandler("toppeoplereset", toppeoplereset_command))
-
+    
     # Start services
     if Config.SCHEDULER_ENABLED:
         loop.create_task(autopost_service.start())
