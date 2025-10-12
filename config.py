@@ -1,6 +1,38 @@
-# ============= config.py - ДОБАВИТЬ В STATS_CHANNELS =============
+import os
+from dotenv import load_dotenv
+from typing import List, Set
+import logging
 
-STATS_CHANNELS = {
+logger = logging.getLogger(__name__)
+
+# Загружаем переменные из .env файла (локально)
+load_dotenv()
+
+class Config:
+    # ============= ОСНОВНЫЕ НАСТРОЙКИ =============
+    
+    # Telegram Bot Token - ОБЯЗАТЕЛЬНЫЙ
+    BOT_TOKEN = os.getenv("BOT_TOKEN")
+    
+    # ============= КАНАЛЫ И ГРУППЫ =============
+    
+    # Основные каналы
+    TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID", "-1002743668534"))
+    MODERATION_GROUP_ID = int(os.getenv("MODERATION_GROUP_ID", "-1002734837434"))
+    ADMIN_GROUP_ID = int(os.getenv("ADMIN_GROUP_ID", "-4843909295"))
+    CHAT_FOR_ACTUAL = int(os.getenv("CHAT_FOR_ACTUAL", "-1002734837434"))
+    BUDAPEST_CHAT_ID = int(os.getenv("BUDAPEST_CHAT_ID", "-1002883770818"))
+    
+    # Дополнительные каналы
+    TRADE_CHANNEL_ID = int(os.getenv("TRADE_CHANNEL_ID", "-1003033694255"))
+    BUDAPEST_CHANNEL = os.getenv("BUDAPEST_CHANNEL", "https://t.me/snghu")
+    BUDAPEST_CHAT = os.getenv("BUDAPEST_CHAT", "https://t.me/tgchatxxx")
+    CATALOG_CHANNEL = os.getenv("CATALOG_CHANNEL", "https://t.me/catalogtrix")
+    TRADE_CHANNEL = os.getenv("TRADE_CHANNEL", "https://t.me/hungarytrade")
+
+    # ============= КАНАЛЫ ДЛЯ МОНИТОРИНГА СТАТИСТИКИ =============
+    # Расширенный список всех каналов
+    STATS_CHANNELS = {
     'gambling_chat': int(os.getenv("GAMBLING_CHAT_ID", "-1002922212434")),
     'catalog': int(os.getenv("CATALOG_ID", "-1002601716810")),
     'trade': int(os.getenv("TRADE_ID", "-1003033694255")),
@@ -8,318 +40,148 @@ STATS_CHANNELS = {
     'budapest_chat': int(os.getenv("BUDAPEST_CHAT_STATS_ID", "-1002883770818")),
     'partners': int(os.getenv("PARTNERS_ID", "-1002919380244")),
     'budapest_people': int(os.getenv("BUDAPEST_PEOPLE_ID", "-1003114019170")),  # НОВОЕ
-}
-
-# ============= ДОБАВИТЬ В .env =============
-BUDAPEST_PEOPLE_ID=-1003114019170
-
-
-# ============= handlers/rating_handler.py - ОБНОВЛЕННАЯ ВЕРСИЯ =============
-
-async def rate_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Начать процесс публикации фото с опросом - /ratestart
-    ИСПРАВЛЕНО: с кулдауном 1 час и модерацией"""
+     }  # НОВОЕ
     
-    user_id = update.effective_user.id
+    # Альтернативные каналы (если нужны)
+    BUDAPEST_PLAY_ID = int(os.getenv("BUDAPEST_PLAY_ID", "0"))  # 🐦‍🔥 BUDAPEST PLAY
     
-    if not Config.is_admin(update.effective_user.id):
-        await update.message.reply_text("❌ Только админы могут создавать опросы")
-        return
+    # ============= БАЗА ДАННЫХ =============
     
-    # ✅ ИСПРАВЛЕНО: Проверка кулдауна 1 час для /ratestart
-    from services.cooldown import cooldown_service
+    # ИСПРАВЛЕНО: Правильное получение DATABASE_URL с логированием
+    _raw_db_url = os.getenv("DATABASE_URL")
     
-    rate_cooldown_key = f"rate_start_{user_id}"
+    if not _raw_db_url:
+        logger.warning("⚠️ DATABASE_URL not set! Using SQLite fallback")
+        DATABASE_URL = "sqlite:///./trixbot.db"
+    else:
+        DATABASE_URL = _raw_db_url
+        logger.info(f"✅ DATABASE_URL set: {DATABASE_URL[:40]}...")
     
-    # Используем cooldown сервис
-    can_use, remaining = await cooldown_service.can_post(user_id)
+    # ============= ПРАВА ДОСТУПА =============
     
-    # Дополнительная проверка кулдауна для /ratestart (1 час)
-    if rate_cooldown_key in context.user_data:
-        last_use = context.user_data[rate_cooldown_key]
-        elapsed = (datetime.now() - last_use).total_seconds()
+    # Админы (замените на свои Telegram ID)
+    ADMIN_IDS: Set[int] = set(map(int, filter(None, os.getenv("ADMIN_IDS", "7811593067").split(","))))
+    
+    # Модераторы
+    MODERATOR_IDS: Set[int] = set(map(int, filter(None, os.getenv("MODERATOR_IDS", "").split(","))))
+    
+    # ============= НАСТРОЙКИ КУЛДАУНОВ =============
+    
+    COOLDOWN_SECONDS = int(os.getenv("COOLDOWN_SECONDS", "3600"))  # 1 час по умолчанию
+    
+    # ============= АВТОПОСТИНГ =============
+    
+    SCHEDULER_MIN_INTERVAL = int(os.getenv("SCHEDULER_MIN", "120"))
+    SCHEDULER_MAX_INTERVAL = int(os.getenv("SCHEDULER_MAX", "160"))
+    SCHEDULER_ENABLED = os.getenv("SCHEDULER_ENABLED", "false").lower() == "true"
+    
+    # ============= СТАТИСТИКА =============
+    
+    # Интервал между автоматической статистикой (в часах)
+    # НОВОЕ: Теперь используется STATS_TIMES_BUDAPEST вместо интервала
+    STATS_INTERVAL_HOURS = int(os.getenv("STATS_INTERVAL_HOURS", "8"))  # Резервный параметр
+    
+    # ============= СООБЩЕНИЯ ПО УМОЛЧАНИЮ =============
+    
+    DEFAULT_SIGNATURE = os.getenv("DEFAULT_SIGNATURE", "🤖 @TrixLiveBot - Ваш гид по Будапешту")
+    DEFAULT_PROMO_MESSAGE = os.getenv("DEFAULT_PROMO_MESSAGE", 
+                                      "📢 Создать публикацию: https://t.me/TrixLiveBot\n"
+                                      "🏆 Лучший канал Будапешта: https://t.me/snghu")
+    
+    # ============= ЛИМИТЫ =============
+    
+    MAX_PHOTOS_PIAR = int(os.getenv("MAX_PHOTOS_PIAR", "3"))
+    MAX_DISTRICTS_PIAR = int(os.getenv("MAX_DISTRICTS_PIAR", "3"))
+    MAX_MESSAGE_LENGTH = int(os.getenv("MAX_MESSAGE_LENGTH", "4096"))
+    
+    # ============= ФИЛЬТРАЦИЯ =============
+    
+    # Запрещенные домены (можно расширить через переменные окружения)
+    BANNED_DOMAINS = [
+        "bit.ly", "tinyurl.com", "cutt.ly", "goo.gl",
+        "shorturl.at", "ow.ly", "is.gd", "buff.ly"
+    ]
+    
+    # ============= МЕТОДЫ КЛАССА =============
+    
+    @classmethod
+    def is_admin(cls, user_id: int) -> bool:
+        """Проверяет, является ли пользователь администратором"""
+        return user_id in cls.ADMIN_IDS
+    
+    @classmethod
+    def is_moderator(cls, user_id: int) -> bool:
+        """Проверяет, является ли пользователь модератором или админом"""
+        return user_id in cls.MODERATOR_IDS or cls.is_admin(user_id)
+    
+    @classmethod
+    def get_all_moderators(cls) -> Set[int]:
+        """Возвращает всех модераторов и админов"""
+        return cls.ADMIN_IDS.union(cls.MODERATOR_IDS)
+    
+    @classmethod
+    def validate_config(cls) -> List[str]:
+        """Проверяет корректность конфигурации"""
+        errors = []
         
-        if elapsed < 3600:  # 1 час = 3600 секунд
-            remaining_minutes = int((3600 - elapsed) / 60)
-            await update.message.reply_text(
-                f"⏰ Вы сможете создать новый рейтинг через {remaining_minutes} минут"
-            )
-            return
+        if not cls.BOT_TOKEN:
+            errors.append("❌ BOT_TOKEN не задан")
+        
+        if not cls.DATABASE_URL or cls.DATABASE_URL == "sqlite:///./trixbot.db":
+            errors.append("⚠️ DATABASE_URL не задан или используется SQLite (локальное хранилище)")
+        
+        if not cls.ADMIN_IDS:
+            errors.append("⚠️ ADMIN_IDS не заданы")
+        
+        if cls.ADMIN_GROUP_ID == cls.MODERATION_GROUP_ID:
+            errors.append("⚠️ ADMIN_GROUP_ID и MODERATION_GROUP_ID совпадают (рекомендуется разделить)")
+        
+        return errors
     
-    # Сохраняем время использования
-    context.user_data[rate_cooldown_key] = datetime.now()
-    
-    context.user_data['rate_step'] = 'photo'
-    context.user_data['rate_status'] = 'pending'  # Статус на модерацию
-    
-    keyboard = [[InlineKeyboardButton("🚗 Отмена", callback_data="rate:cancel")]]
-    
-    text = (
-        "📊 **СОЗДАНИЕ РЕЙТИНГА С ОПРОСОМ**\n\n"
-        "Шаг 1️⃣ из 3️⃣\n\n"
-        "⚠️ **Новое:** Посты будут отправлены на модерацию!\n"
-        "Администратор подтвердит публикацию.\n\n"
-        "📸 Отправьте фотографию"
-    )
-    
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-    context.user_data['waiting_for'] = 'rate_photo'
-
-
-async def publish_rate_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Публикация поста с опросом - ИСПРАВЛЕНО: теперь отправляется в модерацию"""
-    photo_file_id = context.user_data.get('rate_photo_file_id')
-    profile_url = context.user_data.get('rate_profile')
-    gender = context.user_data.get('rate_gender')
-    
-    if not all([photo_file_id, profile_url, gender]):
-        await update.callback_query.edit_message_text("❌ Ошибка: не хватает данных")
-        return
-    
-    try:
-        # Генерируем уникальный ID поста
-        post_id = len(rating_data['posts']) + 1
-        
-        # Создаем кнопки опроса (для финального отображения)
-        keyboard = [
-            [
-                InlineKeyboardButton("😭 -2", callback_data=f"rate:vote:{post_id}:-2"),
-                InlineKeyboardButton("👎 -1", callback_data=f"rate:vote:{post_id}:-1"),
-                InlineKeyboardButton("😐 0", callback_data=f"rate:vote:{post_id}:0"),
-                InlineKeyboardButton("👍 +1", callback_data=f"rate:vote:{post_id}:1"),
-                InlineKeyboardButton("🔥 +2", callback_data=f"rate:vote:{post_id}:2"),
-            ]
-        ]
-        
-        # Подпись
-        caption = f"📊 Rate {profile_url}\n\n" \
-                  f"👥 Gender: {gender.upper()}\n\n" \
-                  f"👇 Выберите оценку"
-        
-        # Сохраняем в памяти (ПОКА БЕЗ ПУБЛИКАЦИИ)
-        rating_data['posts'][post_id] = {
-            'profile_url': profile_url,
-            'gender': gender,
-            'photo_file_id': photo_file_id,
-            'caption': caption,
-            'votes': {},
-            'keyboard': keyboard,
-            'created_at': datetime.now(),
-            'status': 'pending',  # НОВОЕ: статус модерации
-            'created_by': update.effective_user.id
-        }
-        
-        # Инициализируем профиль если его нет
-        if profile_url not in rating_data['profiles']:
-            rating_data['profiles'][profile_url] = {
-                'gender': gender,
-                'total_score': 0,
-                'vote_count': 0,
-                'post_ids': []
-            }
-        
-        logger.info(f"Created rate post {post_id} for {profile_url} (pending moderation)")
-        
-        # ✅ НОВОЕ: Отправляем в МОДЕРАЦИЮ вместо публикации
-        await send_rating_to_moderation(update, context, post_id, photo_file_id, caption, keyboard)
-        
-        # Очищаем данные
-        context.user_data.pop('rate_photo_file_id', None)
-        context.user_data.pop('rate_profile', None)
-        context.user_data.pop('rate_gender', None)
-        context.user_data.pop('rate_step', None)
-        
-        await update.callback_query.edit_message_text(
-            f"✅ **Рейтинг отправлен на модерацию!**\n\n"
-            f"📊 Профиль: {profile_url}\n"
-            f"👥 Пол: {gender.upper()}\n"
-            f"🆔 Post ID: {post_id}\n\n"
-            f"⏳ Ожидайте подтверждения администратора",
-            parse_mode='Markdown'
+    @classmethod
+    def get_info(cls) -> str:
+        """Возвращает информацию о конфигурации"""
+        db_type = "PostgreSQL" if "postgresql" in cls.DATABASE_URL else (
+            "MySQL" if "mysql" in cls.DATABASE_URL else "SQLite"
         )
         
-    except Exception as e:
-        logger.error(f"Error publishing rate post: {e}")
-        await update.callback_query.edit_message_text(f"❌ Ошибка при создании: {e}")
+        return f"""
+📋 КОНФИГУРАЦИЯ БОТА
 
+🤖 Основное:
+• Bot Token: {'✅ Установлен' if cls.BOT_TOKEN else '❌ Не установлен'}
+• Database: {db_type} ({'✅ Облако' if "postgresql" in cls.DATABASE_URL or "mysql" in cls.DATABASE_URL else '⚠️ Локальная'})
 
-async def send_rating_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                                   post_id: int, photo_file_id: str, caption: str, keyboard_data: list):
-    """✅ НОВОЕ: Отправить рейтинг пост в модерацию"""
-    
-    bot = context.bot
-    admin_username = update.effective_user.username or f"ID_{update.effective_user.id}"
-    
-    try:
-        # Проверяем доступность группы модерации
-        try:
-            await bot.get_chat(Config.MODERATION_GROUP_ID)
-        except Exception as e:
-            logger.error(f"Cannot access moderation group: {e}")
-            await bot.send_message(
-                chat_id=update.effective_user.id,
-                text="⚠️ Группа модерации недоступна. Обратитесь к администратору."
-            )
-            return
-        
-        # Отправляем фото
-        mod_text = (
-            f"⭐️ НОВЫЙ РЕЙТИНГ ДЛЯ ПУБЛИКАЦИИ\n\n"
-            f"👤 От: @{admin_username}\n"
-            f"🆔 Post ID: {post_id}\n"
-            f"📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
-            f"📊 {caption}\n\n"
-            f"⚠️ **ДЕЙСТВИЯ:**"
-        )
-        
-        # Кнопки для модератора
-        mod_keyboard = [
-            [
-                InlineKeyboardButton("✅ Опубликовать", callback_data=f"rate_mod:approve:{post_id}"),
-                InlineKeyboardButton("❌ Отклонить", callback_data=f"rate_mod:reject:{post_id}")
-            ]
-        ]
-        
-        # Отправляем фото с текстом
-        msg = await bot.send_photo(
-            chat_id=Config.MODERATION_GROUP_ID,
-            photo=photo_file_id,
-            caption=mod_text,
-            reply_markup=InlineKeyboardMarkup(mod_keyboard),
-            parse_mode='Markdown'
-        )
-        
-        # Сохраняем ID сообщения модерации
-        rating_data['posts'][post_id]['moderation_message_id'] = msg.message_id
-        
-        logger.info(f"Rating post {post_id} sent to moderation (message {msg.message_id})")
-        
-    except Exception as e:
-        logger.error(f"Error sending rating to moderation: {e}", exc_info=True)
+📢 Группы и каналы:
+• Канал публикаций: {cls.TARGET_CHANNEL_ID}
+• Группа модерации (заявки): {cls.MODERATION_GROUP_ID}
+• Группа администрирования: {cls.ADMIN_GROUP_ID}
+• Актуальное: {cls.CHAT_FOR_ACTUAL}
+• Торговый канал: {cls.TRADE_CHANNEL_ID}
+• Будапешт чат (игнор команд): {cls.BUDAPEST_CHAT_ID}
 
+👑 Права доступа:
+• Администраторов: {len(cls.ADMIN_IDS)}
+• Модераторов: {len(cls.MODERATOR_IDS)}
 
-async def handle_rate_moderation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """✅ НОВОЕ: Обработка модерации рейтинг постов"""
-    
-    query = update.callback_query
-    
-    if not Config.is_moderator(query.from_user.id):
-        await query.answer("❌ Нет прав", show_alert=True)
-        return
-    
-    await query.answer()
-    
-    data = query.data.split(":")
-    action = data[1] if len(data) > 1 else None
-    post_id = int(data[2]) if len(data) > 2 and data[2].isdigit() else None
-    
-    if not post_id or post_id not in rating_data['posts']:
-        await query.answer("❌ Пост не найден", show_alert=True)
-        return
-    
-    post = rating_data['posts'][post_id]
-    
-    if action == "approve":
-        await approve_rating_post(update, context, post_id, post, query)
-    
-    elif action == "reject":
-        await reject_rating_post(update, context, post_id, post, query)
+⚙️ Настройки:
+• Кулдаун: {cls.COOLDOWN_SECONDS // 3600}ч
+• Автопостинг: {'✅ Включен' if cls.SCHEDULER_ENABLED else '❌ Выключен'}
+• Интервал автопоста: {cls.SCHEDULER_MIN_INTERVAL}-{cls.SCHEDULER_MAX_INTERVAL} мин
+• Статистика каждые: {cls.STATS_INTERVAL_HOURS}ч
 
+📊 Лимиты:
+• Макс. фото (пиар): {cls.MAX_PHOTOS_PIAR}
+• Макс. районов (пиар): {cls.MAX_DISTRICTS_PIAR}
+• Макс. длина сообщения: {cls.MAX_MESSAGE_LENGTH}
+"""
 
-async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                              post_id: int, post: dict, query):
-    """✅ НОВОЕ: Одобрить и опубликовать рейтинг пост"""
-    
-    try:
-        bot = context.bot
-        
-        # Публикуем в Budapest People канал
-        msg = await bot.send_photo(
-            chat_id=Config.STATS_CHANNELS['budapest_people'],  # Budapest People
-            photo=post['photo_file_id'],
-            caption=post['caption'],
-            reply_markup=InlineKeyboardMarkup(post['keyboard'])
-        )
-        
-        # Обновляем пост
-        post['status'] = 'published'
-        post['message_id'] = msg.message_id
-        post['published_at'] = datetime.now()
-        
-        logger.info(f"Rating post {post_id} approved and published")
-        
-        # Обновляем сообщение модерации
-        try:
-            await bot.edit_message_caption(
-                chat_id=Config.MODERATION_GROUP_ID,
-                message_id=post['moderation_message_id'],
-                caption=f"✅ **ОДОБРЕНО И ОПУБЛИКОВАНО**\n\n"
-                        f"📊 {post['caption']}\n"
-                        f"✅ Опубликовано в: Budapest People\n"
-                        f"🆔 Post ID: {post_id}",
-                parse_mode='Markdown',
-                reply_markup=None  # Удаляем кнопки
-            )
-        except Exception as e:
-            logger.warning(f"Could not update moderation message: {e}")
-        
-        await query.answer("✅ Опубликовано!", show_alert=False)
-        
-        # Уведомляем автора
-        try:
-            await bot.send_message(
-                chat_id=post['created_by'],
-                text=f"✅ **Ваш рейтинг опубликован!**\n\n"
-                     f"📊 Профиль: {post['profile_url']}\n"
-                     f"👥 Пол: {post['gender'].upper()}\n"
-                     f"📍 Канал: Budapest People\n\n"
-                     f"🍀 Удачи!"
-            )
-        except Exception as e:
-            logger.warning(f"Could not notify author: {e}")
-        
-    except Exception as e:
-        logger.error(f"Error approving rating post: {e}")
-        await query.answer(f"❌ Ошибка: {e}", show_alert=True)
-
-
-async def reject_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE,
-                             post_id: int, post: dict, query):
-    """✅ НОВОЕ: Отклонить рейтинг пост"""
-    
-    bot = context.bot
-    
-    # Обновляем пост
-    post['status'] = 'rejected'
-    post['rejected_at'] = datetime.now()
-    post['rejected_by'] = query.from_user.id
-    
-    # Удаляем с модерации
-    try:
-        await bot.delete_message(
-            chat_id=Config.MODERATION_GROUP_ID,
-            message_id=post['moderation_message_id']
-        )
-    except Exception as e:
-        logger.warning(f"Could not delete moderation message: {e}")
-    
-    # Уведомляем автора
-    try:
-        await bot.send_message(
-            chat_id=post['created_by'],
-            text=f"❌ **Ваш рейтинг отклонен**\n\n"
-                 f"📊 Профиль: {post['profile_url']}\n"
-                 f"👥 Пол: {post['gender'].upper()}\n"
-                 f"🆔 Post ID: {post_id}\n\n"
-                 f"💡 Свяжитесь с администрацией для подробности"
-        )
-    except Exception as e:
-        logger.warning(f"Could not notify author about rejection: {e}")
-    
-    logger.info(f"Rating post {post_id} rejected by {query.from_user.id}")
-    
-    await query.answer("❌ Отклонено", show_alert=False)
-
-
-# ============= ОБНОВИТЬ main.py - ДОБавить новый обработчик =============
-
+# Проверяем конфигурацию при импорте
+if __name__ != "__main__":
+    config_errors = Config.validate_config()
+    if config_errors:
+        logger.warning("🚨 Проблемы конфигурации:")
+        for error in config_errors:
+            logger.warning(f"  {error}")
+    else:
+        logger.info("✅ Конфигурация валидна")
