@@ -367,26 +367,110 @@ async def reject_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE,
     except Exception as e:
         logger.error(f"Error rejecting rating post: {e}")
         await query.answer(f"❌ Ошибка: {e}", show_alert=True)
+        # Добавьте эти функции в handlers/rating_handler.py 
+# ДО строки __all__ (перед самым концом файла):
 
-# ============= ОБНОВИТЕ __all__ =============
-# Замените существующий __all__ на:
+# ============= КОМАНДЫ СТАТИСТИКИ =============
 
-# Замените __all__ в КОНЦЕ файла handlers/rating_handler.py на:
+async def toppeople_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показать топ-10 профилей по очкам - /toppeople"""
+    if not rating_data['profiles']:
+        await update.message.reply_text("❌ Нет данных")
+        return
+    
+    # Сортируем по очкам
+    sorted_profiles = sorted(
+        rating_data['profiles'].items(),
+        key=lambda x: x[1]['total_score'],
+        reverse=True
+    )[:10]
+    
+    text = "🏆 **ТОП-10 ПРОФИЛЕЙ**\n\n"
+    
+    for i, (profile_url, data) in enumerate(sorted_profiles, 1):
+        text += (
+            f"{i}. **{profile_url}**\n"
+            f"   ⭐️ Очки: {data['total_score']}\n"
+            f"   🗳️ Голосов: {data['vote_count']}\n"
+            f"   👥 Пол: {data['gender'].upper()}\n\n"
+        )
+    
+    keyboard = [[InlineKeyboardButton("👯 Топ Boys", callback_data="rate:topboys"),
+                InlineKeyboardButton("👯‍♀️ Топ Girls", callback_data="rate:topgirls")]]
+    
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
 
-__all__ = [
-    'rate_start_command',
-    'handle_rate_photo',
-    'handle_rate_profile',
-    'handle_rate_callback',
-    'handle_rate_moderation_callback',
-    'toppeople_command',
-    'topboys_command',
-    'topgirls_command',
-    'toppeoplereset_command',
-    'publish_rate_post',
-    'send_rating_to_moderation',
-    'approve_rating_post',
-    'reject_rating_post',
-    'get_post_stats',
-    'rating_data'
-]
+async def topboys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Топ-10 среди мужчин - /topboys"""
+    profiles = {url: data for url, data in rating_data['profiles'].items() if data['gender'] == 'boy'}
+    
+    if not profiles:
+        await update.message.reply_text("❌ Нет данных")
+        return
+    
+    sorted_profiles = sorted(profiles.items(), key=lambda x: x[1]['total_score'], reverse=True)[:10]
+    
+    text = "🧑‍🦱 **ТОП-10 BOYS**\n\n"
+    
+    for i, (profile_url, data) in enumerate(sorted_profiles, 1):
+        text += f"{i}. {profile_url} — ⭐️ {data['total_score']} ({data['vote_count']} голосов)\n"
+    
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def topgirls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Топ-10 среди женщин - /topgirls"""
+    profiles = {url: data for url, data in rating_data['profiles'].items() if data['gender'] == 'girl'}
+    
+    if not profiles:
+        await update.message.reply_text("❌ Нет данных")
+        return
+    
+    sorted_profiles = sorted(profiles.items(), key=lambda x: x[1]['total_score'], reverse=True)[:10]
+    
+    text = "👱‍♀️ **ТОП-10 GIRLS**\n\n"
+    
+    for i, (profile_url, data) in enumerate(sorted_profiles, 1):
+        text += f"{i}. {profile_url} — ⭐️ {data['total_score']} ({data['vote_count']} голосов)\n"
+    
+    await update.message.reply_text(text, parse_mode='Markdown')
+
+async def toppeoplereset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сбросить все очки - /toppeoplereset (только для админов)"""
+    if not Config.is_admin(update.effective_user.id):
+        await update.message.reply_text("❌ Только админы")
+        return
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ СБРОСИТЬ", callback_data="rate:reset:confirm"),
+            InlineKeyboardButton("❌ Отмена", callback_data="rate:reset:cancel")
+        ]
+    ]
+    
+    text = (
+        "⚠️ **ВНИМАНИЕ: ПОЛНЫЙ СБРОС РЕЙТИНГА**\n\n"
+        "Это удалит:\n"
+        "❌ Все очки всех профилей\n"
+        "❌ Все голоса\n"
+        "❌ Всю историю\n\n"
+        "Подтверждаете?"
+    )
+    
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+    __all__ = [
+       'rate_start_command',
+       'handle_rate_photo',
+       'handle_rate_profile',
+       'handle_rate_callback',
+       'handle_rate_moderation_callback',
+       'toppeople_command',           # ← ДОЛЖНА БЫТЬ
+       'topboys_command',             # ← ДОЛЖНА БЫТЬ
+       'topgirls_command',            # ← ДОЛЖНА БЫТЬ
+       'toppeoplereset_command',      # ← ДОЛЖНА БЫТЬ
+       'publish_rate_post',
+       'send_rating_to_moderation',
+       'approve_rating_post',
+       'reject_rating_post',
+       'get_post_stats',
+       'rating_data'
+   ]
