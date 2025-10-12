@@ -371,6 +371,8 @@ async def reject_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE,
 # ============= ОБНОВИТЕ __all__ =============
 # Замените существующий __all__ на:
 
+# Замените __all__ в КОНЦЕ файла handlers/rating_handler.py на:
+
 __all__ = [
     'rate_start_command',
     'handle_rate_photo',
@@ -382,7 +384,9 @@ __all__ = [
     'topgirls_command',
     'toppeoplereset_command',
     'publish_rate_post',
+    'send_rating_to_moderation',
     'approve_rating_post',
     'reject_rating_post',
+    'get_post_stats',
     'rating_data'
 ]
