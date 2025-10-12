@@ -3,7 +3,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMe
 from telegram.ext import ContextTypes
 from config import Config
 from services.db import db
-from services.cooldown import CooldownService
 from services.hashtags import HashtagService
 from services.filter_service import FilterService
 from models import User, Post, PostStatus
@@ -13,6 +12,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Канал для публикаций
+BUDAPEST_PEOPLE_CHANNEL = -1003114019170
+
+# Cooldown - 1 час
+COOLDOWN_SECONDS = 3600
+
 async def handle_publication_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle publication callbacks"""
     query = update.callback_query
@@ -20,6 +25,8 @@ async def handle_publication_callback(update: Update, context: ContextTypes.DEFA
     
     data = query.data.split(":")
     action = data[1] if len(data) > 1 else None
+    
+    logger.info(f"Publication callback action: {action}")
     
     if action == "cat":
         # Subcategory selected
@@ -38,7 +45,6 @@ async def handle_publication_callback(update: Update, context: ContextTypes.DEFA
     elif action == "add_media":
         await request_media(update, context)
     elif action == "back":
-        # Возврат к предпросмотру
         await show_preview(update, context)
 
 async def start_post_creation(update: Update, context: ContextTypes.DEFAULT_TYPE, subcategory: str):
@@ -263,15 +269,10 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Generate hashtags
     hashtag_service = HashtagService()
-    
-    # Специальные хештеги для Актуального
-    if post_data.get('is_actual'):
-        hashtags = ['#Актуальное⚡️', '@Trixlivebot']
-    else:
-        hashtags = hashtag_service.generate_hashtags(
-            post_data.get('category'),
-            post_data.get('subcategory')
-        )
+    hashtags = hashtag_service.generate_hashtags(
+        post_data.get('category'),
+        post_data.get('subcategory')
+    )
     
     # Build preview text
     preview_text = f"{post_data.get('text', '')}\n\n"
@@ -297,9 +298,9 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
     media = post_data.get('media', [])
     if media:
         try:
-            for i, media_item in enumerate(media[:5]):  # Показываем до 5 медиа файлов
+            for i, media_item in enumerate(media[:5]):
                 caption = None
-                if i == 0:  # Первое медиа с подписью
+                if i == 0:
                     caption = f"💿 Медиа файлы ({len(media)} шт.)"
                 
                 if media_item.get('type') == 'photo':
@@ -320,7 +321,7 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error showing media preview: {e}")
     
-    # ИСПРАВЛЕНО: Потом показываем текст с кнопками (последнее сообщение)
+    # ИСПРАВЛЕНО: Потом показываем текст с кнопками
     try:
         await update.effective_message.reply_text(
             f"🫣 *Предпросмотр поста:*\n\n{preview_text}",
@@ -329,25 +330,39 @@ async def show_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception as e:
         logger.error(f"Error sending preview text: {e}")
-        # Fallback без форматирования
         await update.effective_message.reply_text(
             f"Предпросмотр поста:\n\n{preview_text}",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-# Замени эти функции в handlers/publication_handler.py
-
 async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send post to moderation with fixed cooldown check"""
+    """Send post to moderation with cooldown check"""
     user_id = update.effective_user.id
+    username = update.effective_user.username or f"ID_{user_id}"
     post_data = context.user_data.get('post_data')
     
     if not post_data:
         await update.callback_query.edit_message_text("💥 Данные поста не найдены")
         return
     
+    # ✅ ПРОВЕРКА COOLDOWN'А
+    from main import check_cooldown, record_submission
+    can_submit, remaining = check_cooldown(user_id)
+    
+    if not can_submit and not Config.is_admin(user_id):
+        minutes = remaining // 60
+        seconds = remaining % 60
+        await update.callback_query.edit_message_text(
+            f"⏰ **Ограничение по времени**\n\n"
+            f"Вы сможете отправить следующую заявку через:\n"
+            f"⏳ {minutes} минут {seconds} секунд",
+            parse_mode='Markdown'
+        )
+        logger.info(f"User {user_id} tried to post with cooldown remaining: {remaining}s")
+        return
+    
     try:
-        # ИСПРАВЛЕНИЕ: проверяем доступность БД
+        # ПРОВЕРКА БД
         if not db.session_maker:
             logger.error("Database not available")
             await update.callback_query.edit_message_text(
@@ -369,26 +384,7 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 )
                 return
             
-            # ИСПРАВЛЕНИЕ: проверяем кулдаун правильно
-            from services.cooldown import cooldown_service
-            
-            try:
-                can_post, remaining_seconds = await cooldown_service.can_post(user_id)
-            except Exception as cooldown_error:
-                logger.warning(f"Cooldown check failed: {cooldown_error}")
-                can_post = cooldown_service.simple_can_post(user_id)
-                remaining_seconds = cooldown_service.get_remaining_time(user_id)
-            
-            if not can_post and not Config.is_moderator(user_id):
-                remaining_minutes = remaining_seconds // 60
-                await update.callback_query.edit_message_text(
-                    f"💤 Нужно подождать еще {remaining_minutes} минут до следующего поста"
-                )
-                return
-            
-            # ИСПРАВЛЕНО: Используем PostStatus.PENDING вместо PostStatus.PENDING
-            from models import PostStatus  # Правильный импорт
-            
+            # СОЗДАЕМ ПОСТ
             create_post_data = {
                 'user_id': int(user_id),
                 'category': str(post_data.get('category', ''))[:255] if post_data.get('category') else None,
@@ -397,8 +393,9 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 'hashtags': list(post_data.get('hashtags', [])),
                 'anonymous': bool(post_data.get('anonymous', False)),
                 'media': list(post_data.get('media', [])),
-                'status': PostStatus.PENDING,  # ИСПРАВЛЕНО: используем правильное значение
-                'is_piar': False
+                'status': PostStatus.PENDING,
+                'is_piar': False,
+                'username': username
             }
             
             # Create post
@@ -407,29 +404,25 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             await session.flush()
             
             post_id = post.id
-            logger.info(f"Created post with ID: {post_id}")
+            logger.info(f"Created post with ID: {post_id} from user {user_id}")
             
             await session.commit()
             
-            # Refresh post
-            await session.refresh(post)
+            # ОТПРАВЛЯЕМ НА МОДЕРАЦИЮ
+            await send_to_moderation_group(update, context, post, user, post_data, username)
             
-            # Send to moderation
-            await send_to_moderation_group(update, context, post, user)
-            
-            # Update cooldown
-            try:
-                await cooldown_service.update_cooldown(user_id)
-            except Exception:
-                cooldown_service.set_last_post_time(user_id)
+            # ЗАПИСЫВАЕМ COOLDOWN
+            record_submission(user_id)
             
             # Clean up
             context.user_data.pop('post_data', None)
             context.user_data.pop('waiting_for', None)
             
+            # СООБЩЕНИЕ ПОЛЬЗОВАТЕЛЮ
             await update.callback_query.edit_message_text(
-                "✅ Пост отправлен на модерацию!\n"
-                "⏹️ Ожидайте ссылку на свою публикацию в ЛС"
+                "✅ **Ваша заявка отправлена на модерацию!**\n\n"
+                "⏳ Ожидайте решение модераторов...\n\n"
+                "📩 Ссылка на публикацию придет в личные сообщения"
             )
             
     except Exception as e:
@@ -438,95 +431,47 @@ async def send_to_moderation(update: Update, context: ContextTypes.DEFAULT_TYPE)
             "😖 Ошибка при отправке на модерацию"
         )
 
-
 async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT_TYPE, 
-                                   post: Post, user: User):
-    """Send post to moderation group - ИСПРАВЛЕННАЯ версия"""
+                                   post: Post, user: User, post_data: dict, username: str):
+    """Send post to moderation group"""
     bot = context.bot
     
-    is_actual = context.user_data.get('post_data', {}).get('is_actual', False)
-    target_group = Config.MODERATION_GROUP_ID
-    
-    def escape_markdown(text):
-        """Экранирует специальные символы markdown"""
-        if not text:
-            return text
-        text = str(text)
-        text = text.replace('*', '\\*')
-        text = text.replace('_', '\\_')
-        text = text.replace('[', '\\[')
-        text = text.replace(']', '\\]')
-        text = text.replace('`', '\\`')
-        return text
-    
-    username = user.username or 'no_username'
     category = post.category or 'Unknown'
+    subcategory = post.subcategory or ''
     
-    if is_actual:
-        mod_text = (
-            f"⚡️ АКТУАЛЬНОЕ - Заявочка залетела\n\n"
-            f"💌 от: @{username} (ID: {user.id})\n"
-            f"💥 Примерно в: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"📚 Раздел: {category}\n"
-            f"🎯 Будет опубликовано в ЧАТе и ЗАКРЕПЛЕНО"
-        )
-    else:
-        mod_text = (
-            f"🚨 Заявочка залетела\n\n"
-            f"💌 от: @{username} (ID: {user.id})\n"
-            f"💥 Примерно в: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-            f"📚 Из раздела: {category}"
-        )
+    mod_text = (
+        f"📨 **НОВАЯ ЗАЯВКА**\n\n"
+        f"👤 От: @{username} (ID: {user.id})\n"
+        f"📅 Дата: {post.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"📚 Категория: {category}"
+    )
     
-    if post.subcategory:
-        mod_text += f" → {post.subcategory}"
+    if subcategory:
+        mod_text += f" → {subcategory}"
     
-    if post.anonymous:
-        mod_text += "\n🫆 Анонимно"
-    
-    media_count = 0
     if post.media:
-        try:
-            media_count = len(post.media) if isinstance(post.media, list) else 0
-            if media_count > 0:
-                mod_text += f"\n📀 Медиа: {media_count} файл(ов)"
-        except (TypeError, AttributeError):
-            logger.warning(f"Invalid media data for post {post.id}: {post.media}")
+        media_count = len(post.media) if isinstance(post.media, list) else 0
+        if media_count > 0:
+            mod_text += f"\n📎 Медиа: {media_count} файл(ов)"
     
     if post.text:
-        post_text = post.text[:500] + "..." if len(post.text) > 500 else post.text
-        mod_text += f"\n\n📝 Текст:\n{escape_markdown(post_text)}"
-    else:
-        mod_text += f"\n\n📝 Текст: (без текста)"
+        post_text = post.text[:300] + "..." if len(post.text) > 300 else post.text
+        mod_text += f"\n\n📝 Текст:\n{post_text}"
     
-    if post.hashtags:
-        try:
-            hashtags_text = " ".join(str(tag) for tag in post.hashtags)
-            mod_text += f"\n\n#️⃣ Хештеги: {escape_markdown(hashtags_text)}"
-        except (TypeError, AttributeError):
-            logger.warning(f"Invalid hashtags data for post {post.id}: {post.hashtags}")
-    
-    if is_actual:
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ В ЧАТ + ЗАКРЕПИТЬ", callback_data=f"mod:approve_chat:{post.id}"),
-                InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")
-            ]
+    # КНОПКИ МОДЕРАЦИИ
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Опубликовать на канал", callback_data=f"mod:approve:{post.id}"),
+            InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")
         ]
-    else:
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ Опубликовать", callback_data=f"mod:approve:{post.id}"),
-                InlineKeyboardButton("❌ Отклонить", callback_data=f"mod:reject:{post.id}")
-            ]
-        ]
+    ]
     
     try:
         # Проверяем доступность группы модерации
         try:
-            await bot.get_chat(target_group)
+            await bot.get_chat(Config.MODERATION_GROUP_ID)
         except Exception as chat_error:
-            logger.error(f"Cannot access moderation group {target_group}: {chat_error}")
+            logger.error(f"Cannot access moderation group: {chat_error}")
             await bot.send_message(
                 chat_id=user.id,
                 text="⚠️ Группа модерации недоступна. Обратитесь к администратору."
@@ -534,73 +479,62 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
             return
 
         # Отправляем медиа если есть
-        media_messages = []
-        if post.media and media_count > 0:
+        if post.media and isinstance(post.media, list):
             for i, media_item in enumerate(post.media):
                 try:
                     if not media_item or not isinstance(media_item, dict):
-                        logger.warning(f"Invalid media item {i}: {media_item}")
                         continue
                         
                     file_id = media_item.get('file_id')
                     media_type = media_item.get('type')
                     
                     if not file_id or not media_type:
-                        logger.warning(f"Missing file_id or type in media item {i}: {media_item}")
                         continue
                     
-                    caption = f"📷 Медиа {i+1}/{media_count}"
-                    if is_actual:
-                        caption += " ⚡️"
+                    caption = f"📷 Медиа {i+1}/{len(post.media)}"
                     
                     if media_type == 'photo':
-                        msg = await bot.send_photo(
-                            chat_id=target_group,
+                        await bot.send_photo(
+                            chat_id=Config.MODERATION_GROUP_ID,
                             photo=file_id,
                             caption=caption
                         )
-                        media_messages.append(msg.message_id)
                     elif media_type == 'video':
-                        msg = await bot.send_video(
-                            chat_id=target_group,
+                        await bot.send_video(
+                            chat_id=Config.MODERATION_GROUP_ID,
                             video=file_id,
                             caption=caption
                         )
-                        media_messages.append(msg.message_id)
                     elif media_type == 'document':
-                        msg = await bot.send_document(
-                            chat_id=target_group,
+                        await bot.send_document(
+                            chat_id=Config.MODERATION_GROUP_ID,
                             document=file_id,
                             caption=caption
                         )
-                        media_messages.append(msg.message_id)
                         
                 except Exception as e:
-                    logger.error(f"Error sending media {i+1} for post {post.id}: {e}")
+                    logger.error(f"Error sending media: {e}")
                     continue
         
         # Отправляем текст с кнопками
         try:
             message = await bot.send_message(
-                chat_id=target_group,
+                chat_id=Config.MODERATION_GROUP_ID,
                 text=mod_text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='Markdown'
             )
             logger.info(f"✅ Post {post.id} sent to moderation successfully")
         except Exception as text_error:
             logger.error(f"Error sending moderation text: {text_error}")
-            simple_text = (
-                f"Новая заявка от @{username} (ID: {user.id})\n"
-                f"Категория: {category}\n"
-                f"Текст: {(post.text or '')[:200]}..."
-            )
+            simple_text = f"Новая заявка от @{username}\nКатегория: {category}\nТекст: {(post.text or '')[:200]}..."
             message = await bot.send_message(
-                chat_id=target_group,
+                chat_id=Config.MODERATION_GROUP_ID,
                 text=simple_text,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         
-        # Сохраняем message ID
+        # Сохраняем message ID для отслеживания
         try:
             from sqlalchemy import text
             async with db.get_session() as session:
@@ -609,32 +543,84 @@ async def send_to_moderation_group(update: Update, context: ContextTypes.DEFAULT
                     {"msg_id": message.message_id, "post_id": int(post.id)}
                 )
                 await session.commit()
-                logger.info(f"✅ Saved moderation_message_id for post {post.id}")
         except Exception as save_error:
             logger.warning(f"Could not save moderation_message_id: {save_error}")
             
     except Exception as e:
         logger.error(f"❌ Error sending to moderation group: {e}", exc_info=True)
-        try:
-            error_details = str(e)[:200] + "..." if len(str(e)) > 200 else str(e)
-            await bot.send_message(
-                chat_id=user.id,
-                text=(
-                    f"⚠️ Ошибка отправки в группу модерации\n\n"
-                    f"Детали ошибки: {error_details}\n\n"
-                    f"ID группы: {target_group}\n\n"
-                    f"Обратитесь к администратору."
-                )
+
+async def publish_to_channel(bot, post: Post, user: User):
+    """Publish approved post to Budapest People channel"""
+    try:
+        # Получаем текст поста
+        post_text = f"{post.text}\n\n"
+        
+        # Добавляем хештеги
+        if post.hashtags:
+            hashtags_text = " ".join(str(tag) for tag in post.hashtags)
+            post_text += f"{hashtags_text}\n\n"
+        
+        # Добавляем подпись
+        if not post.anonymous and user.username:
+            post_text += f"✍️ @{user.username}"
+        
+        post_text += f"\n{Config.DEFAULT_SIGNATURE}"
+        
+        # Отправляем медиа если есть
+        if post.media and isinstance(post.media, list) and len(post.media) > 0:
+            for i, media_item in enumerate(post.media):
+                try:
+                    if not media_item or not isinstance(media_item, dict):
+                        continue
+                    
+                    file_id = media_item.get('file_id')
+                    media_type = media_item.get('type')
+                    
+                    if not file_id or not media_type:
+                        continue
+                    
+                    # Только для первого медиа добавляем полный текст
+                    caption = post_text if i == 0 else None
+                    
+                    if media_type == 'photo':
+                        msg = await bot.send_photo(
+                            chat_id=BUDAPEST_PEOPLE_CHANNEL,
+                            photo=file_id,
+                            caption=caption,
+                            parse_mode='HTML' if caption else None
+                        )
+                    elif media_type == 'video':
+                        msg = await bot.send_video(
+                            chat_id=BUDAPEST_PEOPLE_CHANNEL,
+                            video=file_id,
+                            caption=caption,
+                            parse_mode='HTML' if caption else None
+                        )
+                    
+                except Exception as e:
+                    logger.error(f"Error publishing media: {e}")
+                    continue
+        else:
+            # Если нет медиа, отправляем текст
+            msg = await bot.send_message(
+                chat_id=BUDAPEST_PEOPLE_CHANNEL,
+                text=post_text,
+                parse_mode='HTML'
             )
-        except Exception as notify_error:
-            logger.error(f"Could not notify user about error: {notify_error}")
+        
+        logger.info(f"✅ Post {post.id} published to channel")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error publishing to channel: {e}")
+        return False
 
 async def cancel_post_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Ask for cancellation reason"""
     keyboard = [
         [InlineKeyboardButton("🤔 Передумал", callback_data="pub:cancel_confirm")],
         [InlineKeyboardButton("👎 Ошибка в тексте", callback_data="pub:cancel_confirm")],
-        [InlineKeyboardButton("👈Назад", callback_data="pub:preview")]
+        [InlineKeyboardButton("👈 Назад", callback_data="pub:preview")]
     ]
     
     await update.callback_query.edit_message_text(
@@ -669,3 +655,10 @@ async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     from handlers.start_handler import show_main_menu
     await show_main_menu(update, context)
+
+__all__ = [
+    'handle_publication_callback',
+    'handle_text_input',
+    'handle_media_input',
+    'publish_to_channel'
+]
