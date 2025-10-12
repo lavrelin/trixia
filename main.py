@@ -26,6 +26,7 @@ from handlers.moderation_handler import (
     top_command,
     lastseen_command
 )
+from handlers.rating_handler import handle_rate_moderation_callback
 from handlers.profile_handler import handle_profile_callback
 from handlers.basic_handler import id_command, participants_command, report_command
 from handlers.link_handler import trixlinks_command
@@ -293,6 +294,8 @@ async def handle_all_callbacks(update: Update, context):
             await handle_piar_callback(update, context)
         elif handler_type == "mod":
             await handle_moderation_callback(update, context)
+           elif handler_type == "rate_mod":
+            await handle_rate_moderation_callback(update, context) 
         elif handler_type == "admin":
             await handle_admin_callback(update, context)
         elif handler_type == "profile":
