@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-TRIXBOT - Budapest Community Bot
-Channel: -1003114019170 (https://t.me/budapestpeople)
-"""
 import logging
 import asyncio
 from telegram import Update
@@ -12,7 +8,6 @@ from telegram.ext import (
 )
 from dotenv import load_dotenv
 from config import Config
-from datetime import datetime, timedelta
 
 # ============= HANDLERS - ОСНОВНЫЕ =============
 from handlers.start_handler import start_command, help_command, show_main_menu, show_write_menu
@@ -99,16 +94,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ============= ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =============
-# Канал для публикаций
-BUDAPEST_PEOPLE_CHANNEL = -1003114019170
-
-# Cooldown - 1 час (3600 секунд)
-COOLDOWN_SECONDS = 3600
-
-# Хранилище времени последней заявки пользователя
-user_last_submission = {}  # {user_id: datetime}
-
 async def init_db_tables():
     """Initialize database tables with better error handling"""
     try:
@@ -184,27 +169,6 @@ async def init_db_tables():
         logger.error(f"❌ Database error: {e}", exc_info=True)
         logger.warning("⚠️  Bot will run in LIMITED MODE")
         return False
-
-def check_cooldown(user_id: int) -> tuple[bool, int]:
-    """
-    Проверить cooldown для пользователя
-    Returns: (можно_ли_постить, оставшиеся_секунды)
-    """
-    if user_id not in user_last_submission:
-        return True, 0
-    
-    last_submission = user_last_submission[user_id]
-    elapsed = (datetime.now() - last_submission).total_seconds()
-    
-    if elapsed >= COOLDOWN_SECONDS:
-        return True, 0
-    
-    remaining = int(COOLDOWN_SECONDS - elapsed)
-    return False, remaining
-
-def record_submission(user_id: int):
-    """Записать время последней заявки"""
-    user_last_submission[user_id] = datetime.now()
 
 def ignore_budapest_chat_commands(func):
     """Decorator to ignore commands from Budapest chat"""
@@ -447,8 +411,6 @@ def main():
     print("🚀 Starting TrixBot...")
     print(f"📊 Database: {Config.DATABASE_URL[:30]}...")
     print(f"🚫 Budapest chat: {Config.BUDAPEST_CHAT_ID}")
-    print(f"📢 Publication channel: {BUDAPEST_PEOPLE_CHANNEL}")
-    print(f"⏰ Cooldown: {COOLDOWN_SECONDS // 3600} hour(s)")
     
     # Initialize DB
     db_initialized = loop.run_until_complete(init_db_tables())
@@ -467,11 +429,6 @@ def main():
     admin_notifications.set_bot(application.bot)
     channel_stats.set_bot(application.bot)
     stats_scheduler.set_admin_notifications(admin_notifications)
-    
-    # Сохраняем глобальные переменные в приложение
-    application.bot_data['cooldown_check'] = check_cooldown
-    application.bot_data['record_submission'] = record_submission
-    application.bot_data['channel_id'] = BUDAPEST_PEOPLE_CHANNEL
     
     logger.info("✅ Services initialized")
     
@@ -597,8 +554,7 @@ def main():
     print(f"📢 Moderation: {Config.MODERATION_GROUP_ID}")
     print(f"🔧 Admin group: {Config.ADMIN_GROUP_ID}")
     print(f"🚫 Budapest chat (IGNORE): {Config.BUDAPEST_CHAT_ID}")
-    print(f"📺 Publication channel: {BUDAPEST_PEOPLE_CHANNEL}")
-    print(f"⏰ Cooldown: {COOLDOWN_SECONDS // 3600}h")
+    print(f"⏰ Cooldown: {Config.COOLDOWN_SECONDS // 3600}h")
     
     if db_initialized:
         print(f"💾 Database: ✅ Connected")
