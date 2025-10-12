@@ -4,21 +4,21 @@
 Голоса конвертируются в очки и агрегируются по профилю и полу
 """
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from config import Config
 from datetime import datetime
 import logging
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 # ============= ХРАНИЛИЩЕ ДАННЫХ =============
 
 rating_data = {
-    'posts': {},  # {post_id: {'profile_url': str, 'gender': str, 'photo_file_id': str, 'caption': str, 'votes': {}}}
-    'profiles': {},  # {profile_url: {'gender': str, 'total_score': int, 'vote_count': int, 'post_ids': []}}
-    'user_votes': {}  # {(user_id, post_id): vote_value}  <- для отслеживания повторных голосов
+    'posts': {},
+    'profiles': {},
+    'user_votes': {}
 }
 
 # ============= ОСНОВНЫЕ КОМАНДЫ =============
@@ -30,7 +30,6 @@ async def rate_start_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     context.user_data['rate_step'] = 'photo'
-    
     keyboard = [[InlineKeyboardButton("🚗 Отмена", callback_data="rate:cancel")]]
     
     text = (
@@ -57,7 +56,7 @@ async def handle_rate_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "✅ Фото получено!\n\n"
         "Шаг 2️⃣ из 3️⃣\n\n"
-        "🔗 Отправьте ссылку на профиль или username (Instagram, Telegram и т.д.)\n"
+        "🔗 Отправьте ссылку на профиль или username\n"
         "Пример: @username или https://instagram.com/username"
     )
     
@@ -71,7 +70,6 @@ async def handle_rate_profile(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Неверный формат ссылки")
         return
     
-    # Нормализуем URL
     if profile_url.startswith('@'):
         profile_url = profile_url[1:]
     elif not profile_url.startswith('http'):
@@ -119,7 +117,6 @@ async def handle_rate_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await handle_vote(update, context, post_id, vote_value)
     
     elif action == "back":
-        # Возврат на предыдущий шаг
         step = context.user_data.get('rate_step', 'photo')
         if step == 'profile':
             context.user_data['rate_step'] = 'photo'
@@ -147,10 +144,8 @@ async def handle_rate_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         
         await query.edit_message_text("❌ Отменено")
 
-# Замените функции в handlers/rating_handler.py на эти:
-
 async def publish_rate_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Отправить пост с опросом на модерацию (НЕ публиковать сразу!)"""
+    """Отправить пост на модерацию"""
     photo_file_id = context.user_data.get('rate_photo_file_id')
     profile_url = context.user_data.get('rate_profile')
     gender = context.user_data.get('rate_gender')
@@ -160,20 +155,17 @@ async def publish_rate_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     try:
-        # Генерируем уникальный ID поста
         post_id = len(rating_data['posts']) + 1
         
-        # Сохраняем в памяти для отслеживания
         rating_data['posts'][post_id] = {
             'profile_url': profile_url,
             'gender': gender,
             'photo_file_id': photo_file_id,
             'created_at': datetime.now(),
             'votes': {},
-            'status': 'pending'  # Ожидает модерации
+            'status': 'pending'
         }
         
-        # Инициализируем профиль если его нет
         if profile_url not in rating_data['profiles']:
             rating_data['profiles'][profile_url] = {
                 'gender': gender,
@@ -186,10 +178,8 @@ async def publish_rate_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         logger.info(f"Rating post {post_id} created for {profile_url}, sending to moderation")
         
-        # Отправляем на МОДЕРАЦИЮ
         await send_rating_to_moderation(update, context, post_id, photo_file_id, profile_url, gender)
         
-        # Очищаем данные
         context.user_data.pop('rate_photo_file_id', None)
         context.user_data.pop('rate_profile', None)
         context.user_data.pop('rate_gender', None)
@@ -215,7 +205,6 @@ async def send_rating_to_moderation(update: Update, context: ContextTypes.DEFAUL
     bot = context.bot
     
     try:
-        # Создаем кнопки для модератора
         keyboard = [
             [
                 InlineKeyboardButton("✅ Опубликовать в Budapest People", callback_data=f"rate_mod:approve:{post_id}"),
@@ -223,7 +212,6 @@ async def send_rating_to_moderation(update: Update, context: ContextTypes.DEFAUL
             ]
         ]
         
-        # Отправляем фото с описанием в группу модерации
         caption = (
             f"📊 **НОВЫЙ ПОСТ НА МОДЕРАЦИЮ (Rating)**\n\n"
             f"👤 Профиль: {profile_url}\n"
@@ -241,11 +229,10 @@ async def send_rating_to_moderation(update: Update, context: ContextTypes.DEFAUL
             parse_mode='Markdown'
         )
         
-        # Сохраняем ID сообщения модерации
         rating_data['posts'][post_id]['moderation_message_id'] = msg.message_id
         rating_data['posts'][post_id]['moderation_group_id'] = Config.MODERATION_GROUP_ID
         
-        logger.info(f"Rating post {post_id} sent to moderation group {Config.MODERATION_GROUP_ID}")
+        logger.info(f"Rating post {post_id} sent to moderation")
         
     except Exception as e:
         logger.error(f"Error sending rating post to moderation: {e}")
@@ -270,7 +257,7 @@ async def handle_rate_moderation_callback(update: Update, context: ContextTypes.
         await reject_rating_post(update, context, post_id)
 
 async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int):
-    """Одобрить и ОПУБЛИКОВАТЬ пост в Budapest People (-1003114019170)"""
+    """Одобрить и опубликовать пост"""
     query = update.callback_query
     
     if post_id not in rating_data['posts']:
@@ -283,7 +270,6 @@ async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE
     photo_file_id = post['photo_file_id']
     
     try:
-        # 🎯 ПУБЛИКУЕМ В BUDAPEST PEOPLE (-1003114019170)
         BUDAPEST_PEOPLE_ID = -1003114019170
         
         keyboard = [
@@ -299,7 +285,6 @@ async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         caption = f"📊 Rate {profile_url}\n\n👥 Gender: {gender.upper()}\n\n👇 Выберите оценку"
         
-        # 🎯 ОТПРАВЛЯЕМ В BUDAPEST PEOPLE
         msg = await context.bot.send_photo(
             chat_id=BUDAPEST_PEOPLE_ID,
             photo=photo_file_id,
@@ -307,20 +292,16 @@ async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
-        # Обновляем данные поста
         post['message_id'] = msg.message_id
         post['published_channel_id'] = BUDAPEST_PEOPLE_ID
         post['status'] = 'published'
         
-        # Удаляем кнопки из сообщения модератора
         await query.edit_message_reply_markup(reply_markup=None)
         
-        # Обновляем текст модератора
         new_caption = (
             f"{query.message.caption}\n\n"
             f"✅ **ОДОБРЕНО И ОПУБЛИКОВАНО**\n"
-            f"📍 Канал: Budapest People\n"
-            f"🔗 https://t.me/c/1003114019170/{msg.message_id}"
+            f"📍 Канал: Budapest People"
         )
         
         await query.edit_message_caption(
@@ -329,7 +310,7 @@ async def approve_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         
         await query.answer("✅ Пост опубликован в Budapest People!", show_alert=False)
-        logger.info(f"Rating post {post_id} approved and published to Budapest People ({BUDAPEST_PEOPLE_ID})")
+        logger.info(f"Rating post {post_id} approved and published")
         
     except Exception as e:
         logger.error(f"Error approving rating post: {e}", exc_info=True)
@@ -344,11 +325,9 @@ async def reject_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE,
         return
     
     try:
-        # Удаляем пост из памяти
         if post_id in rating_data['posts']:
             del rating_data['posts'][post_id]
         
-        # Обновляем сообщение модератора
         await query.edit_message_reply_markup(reply_markup=None)
         
         new_caption = (
@@ -362,23 +341,93 @@ async def reject_rating_post(update: Update, context: ContextTypes.DEFAULT_TYPE,
         )
         
         await query.answer("❌ Пост отклонен и удален", show_alert=False)
-        logger.info(f"Rating post {post_id} rejected by {update.effective_user.id}")
+        logger.info(f"Rating post {post_id} rejected")
         
     except Exception as e:
         logger.error(f"Error rejecting rating post: {e}")
         await query.answer(f"❌ Ошибка: {e}", show_alert=True)
-        # Добавьте эти функции в handlers/rating_handler.py 
-# ДО строки __all__ (перед самым концом файла):
+
+async def handle_vote(update: Update, context: ContextTypes.DEFAULT_TYPE, post_id: int, vote_value: int):
+    """ГЛАВНАЯ ФУНКЦИЯ - Обработка голоса"""
+    query = update.callback_query
+    user_id = update.effective_user.id
+    username = update.effective_user.username or f"ID_{user_id}"
+    
+    if post_id not in rating_data['posts']:
+        await query.answer("❌ Пост не найден", show_alert=True)
+        return
+    
+    post = rating_data['posts'][post_id]
+    profile_url = post['profile_url']
+    
+    try:
+        vote_key = (user_id, post_id)
+        old_vote = rating_data['user_votes'].get(vote_key)
+        
+        # Сохраняем новый голос
+        rating_data['user_votes'][vote_key] = vote_value
+        post['votes'][user_id] = vote_value
+        
+        # Пересчитываем очки для профиля
+        if profile_url in rating_data['profiles']:
+            profile = rating_data['profiles'][profile_url]
+            
+            total_score = sum(post['votes'].values())
+            vote_count = len(post['votes'])
+            
+            profile['total_score'] = total_score
+            profile['vote_count'] = vote_count
+            
+            logger.info(f"User {username} voted {vote_value} for post {post_id}")
+        
+        # Обновляем кнопки с новыми числами
+        stats = get_post_stats(post_id)
+        keyboard = [
+            [
+                InlineKeyboardButton(f"😭 -2 ({stats['-2']})", callback_data=f"rate:vote:{post_id}:-2"),
+                InlineKeyboardButton(f"👎 -1 ({stats['-1']})", callback_data=f"rate:vote:{post_id}:-1"),
+                InlineKeyboardButton(f"😐 0 ({stats['0']})", callback_data=f"rate:vote:{post_id}:0"),
+                InlineKeyboardButton(f"👍 +1 ({stats['1']})", callback_data=f"rate:vote:{post_id}:1"),
+                InlineKeyboardButton(f"🔥 +2 ({stats['2']})", callback_data=f"rate:vote:{post_id}:2"),
+            ],
+            [InlineKeyboardButton(f"📊 Score: {profile['total_score']} | Votes: {profile['vote_count']}", 
+                                callback_data="rate:noop")]
+        ]
+        
+        await context.bot.edit_message_reply_markup(
+            chat_id=post['published_channel_id'],
+            message_id=post['message_id'],
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        emoji_map = {-2: "😭", -1: "👎", 0: "😐", 1: "👍", 2: "🔥"}
+        await query.answer(f"{emoji_map.get(vote_value, '?')} Ваш голос учтен!", show_alert=False)
+        
+    except Exception as e:
+        logger.error(f"Error handling vote: {e}", exc_info=True)
+        await query.answer(f"❌ Ошибка: {e}", show_alert=True)
+
+def get_post_stats(post_id: int) -> Dict[str, int]:
+    """Получить статистику голосов"""
+    if post_id not in rating_data['posts']:
+        return {'-2': 0, '-1': 0, '0': 0, '1': 0, '2': 0}
+    
+    post = rating_data['posts'][post_id]
+    stats = {'-2': 0, '-1': 0, '0': 0, '1': 0, '2': 0}
+    
+    for vote in post['votes'].values():
+        stats[str(vote)] += 1
+    
+    return stats
 
 # ============= КОМАНДЫ СТАТИСТИКИ =============
 
 async def toppeople_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показать топ-10 профилей по очкам - /toppeople"""
+    """Показать топ-10 профилей - /toppeople"""
     if not rating_data['profiles']:
         await update.message.reply_text("❌ Нет данных")
         return
     
-    # Сортируем по очкам
     sorted_profiles = sorted(
         rating_data['profiles'].items(),
         key=lambda x: x[1]['total_score'],
@@ -395,13 +444,10 @@ async def toppeople_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"   👥 Пол: {data['gender'].upper()}\n\n"
         )
     
-    keyboard = [[InlineKeyboardButton("👯 Топ Boys", callback_data="rate:topboys"),
-                InlineKeyboardButton("👯‍♀️ Топ Girls", callback_data="rate:topgirls")]]
-    
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+    await update.message.reply_text(text, parse_mode='Markdown')
 
 async def topboys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Топ-10 среди мужчин - /topboys"""
+    """Топ-10 мужчин - /topboys"""
     profiles = {url: data for url, data in rating_data['profiles'].items() if data['gender'] == 'boy'}
     
     if not profiles:
@@ -418,7 +464,7 @@ async def topboys_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode='Markdown')
 
 async def topgirls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Топ-10 среди женщин - /topgirls"""
+    """Топ-10 женщин - /topgirls"""
     profiles = {url: data for url, data in rating_data['profiles'].items() if data['gender'] == 'girl'}
     
     if not profiles:
@@ -435,7 +481,7 @@ async def topgirls_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode='Markdown')
 
 async def toppeoplereset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сбросить все очки - /toppeoplereset (только для админов)"""
+    """Сбросить все очки - /toppeoplereset"""
     if not Config.is_admin(update.effective_user.id):
         await update.message.reply_text("❌ Только админы")
         return
@@ -449,28 +495,27 @@ async def toppeoplereset_command(update: Update, context: ContextTypes.DEFAULT_T
     
     text = (
         "⚠️ **ВНИМАНИЕ: ПОЛНЫЙ СБРОС РЕЙТИНГА**\n\n"
-        "Это удалит:\n"
-        "❌ Все очки всех профилей\n"
-        "❌ Все голоса\n"
-        "❌ Всю историю\n\n"
+        "Это удалит все очки, голоса и историю\n\n"
         "Подтверждаете?"
     )
     
     await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
-    __all__ = [
-       'rate_start_command',
-       'handle_rate_photo',
-       'handle_rate_profile',
-       'handle_rate_callback',
-       'handle_rate_moderation_callback',
-       'toppeople_command',           # ← ДОЛЖНА БЫТЬ
-       'topboys_command',             # ← ДОЛЖНА БЫТЬ
-       'topgirls_command',            # ← ДОЛЖНА БЫТЬ
-       'toppeoplereset_command',      # ← ДОЛЖНА БЫТЬ
-       'publish_rate_post',
-       'send_rating_to_moderation',
-       'approve_rating_post',
-       'reject_rating_post',
-       'get_post_stats',
-       'rating_data'
-   ]
+
+__all__ = [
+    'rate_start_command',
+    'handle_rate_photo',
+    'handle_rate_profile',
+    'handle_rate_callback',
+    'handle_rate_moderation_callback',
+    'handle_vote',
+    'toppeople_command',
+    'topboys_command',
+    'topgirls_command',
+    'toppeoplereset_command',
+    'publish_rate_post',
+    'send_rating_to_moderation',
+    'approve_rating_post',
+    'reject_rating_post',
+    'get_post_stats',
+    'rating_data'
+]
