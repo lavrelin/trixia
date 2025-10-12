@@ -423,5 +423,10 @@ __all__ = [
     'topgirls_command',
     'toppeoplereset_command',
     'handle_reset_callback',
+    'publish_rate_post',
+    'send_rating_to_moderation',
+    'handle_rate_moderation_callback',
+    'approve_rating_post',
+    'reject_rating_post',
     'rating_data'
 ]
