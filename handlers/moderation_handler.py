@@ -209,8 +209,11 @@ async def start_reject_process(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         logger.error(f"❌ REJECT ERROR: {e}", exc_info=True)
 
+# Добавить в handlers/moderation_handler.py
+# Заменить функцию process_approve_with_link на эту:
+
 async def process_approve_with_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process approval with link"""
+    """Process approval with link - публикует пост на канал и отправляет уведомление"""
     try:
         link = update.message.text.strip()
         post_id = context.user_data.get('mod_post_id')
@@ -227,7 +230,7 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text("❌ Неверный формат ссылки")
             return
         
-        # Update status
+        # Update status in database
         from services.db import db
         from models import Post, PostStatus
         from sqlalchemy import select
@@ -240,37 +243,140 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
                 await update.message.reply_text("❌ Пост не найден")
                 return
             
-            post.status = PostStatus.APPROVED  # ИСПРАВЛЕНО: используем строку
+            # ОДОБРЯЕМ ПОСТ
+            post.status = PostStatus.APPROVED
             await session.commit()
             logger.info(f"✅ Post {post_id} approved")
         
+        # ПОЛУЧАЕМ ИНФОРМАЦИЮ О ПОЛЬЗОВАТЕЛЕ
+        async with db.get_session() as session:
+            result = await session.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+            username = user.username if user and user.username else f"ID_{user_id}"
+        
         destination_text = "чате" if is_chat else "канале"
         
-        # Notify user
+        # ✅ ПУБЛИКУЕМ НА КАНАЛ Budapest People (-1003114019170)
+        BUDAPEST_PEOPLE_CHANNEL = -1003114019170
+        
         try:
-            keyboard = [
-                [InlineKeyboardButton("📺 Перейти к посту", url=link)],
-                [InlineKeyboardButton("📢 Канал", url="https://t.me/snghu")]
-            ]
+            # Строим текст поста
+            post_text = f"{post.text}\n\n"
+            
+            # Добавляем хештеги
+            if post.hashtags:
+                hashtags_text = " ".join(str(tag) for tag in post.hashtags)
+                post_text += f"{hashtags_text}\n\n"
+            
+            # Добавляем информацию об авторе если не анонимно
+            if not post.anonymous and user:
+                post_text += f"✍️ @{username}"
+            else:
+                post_text += "✍️ Анонимный пост"
+            
+            # Подпись бота
+            post_text += f"\n{Config.DEFAULT_SIGNATURE}"
+            
+            # Переменная для сохранения ID опубликованного поста
+            published_message_id = None
+            
+            # Отправляем медиа если есть
+            if post.media and isinstance(post.media, list) and len(post.media) > 0:
+                for i, media_item in enumerate(post.media):
+                    try:
+                        if not media_item or not isinstance(media_item, dict):
+                            continue
+                        
+                        file_id = media_item.get('file_id')
+                        media_type = media_item.get('type')
+                        
+                        if not file_id or not media_type:
+                            continue
+                        
+                        # Только для первого медиа добавляем полный текст
+                        caption = post_text if i == 0 else None
+                        
+                        if media_type == 'photo':
+                            msg = await context.bot.send_photo(
+                                chat_id=BUDAPEST_PEOPLE_CHANNEL,
+                                photo=file_id,
+                                caption=caption,
+                                parse_mode='HTML' if caption else None
+                            )
+                            if i == 0:
+                                published_message_id = msg.message_id
+                                
+                        elif media_type == 'video':
+                            msg = await context.bot.send_video(
+                                chat_id=BUDAPEST_PEOPLE_CHANNEL,
+                                video=file_id,
+                                caption=caption,
+                                parse_mode='HTML' if caption else None
+                            )
+                            if i == 0:
+                                published_message_id = msg.message_id
+                        
+                    except Exception as e:
+                        logger.error(f"Error publishing media: {e}")
+                        continue
+            else:
+                # Если нет медиа, отправляем текст
+                msg = await context.bot.send_message(
+                    chat_id=BUDAPEST_PEOPLE_CHANNEL,
+                    text=post_text,
+                    parse_mode='HTML'
+                )
+                published_message_id = msg.message_id
+            
+            # Создаем ссылку на опубликованный пост
+            channel_link = f"https://t.me/c/1003114019170/{published_message_id}" if published_message_id else None
+            
+            logger.info(f"✅ Post {post_id} published to Budapest People channel")
+            
+        except Exception as publish_error:
+            logger.error(f"Error publishing to channel: {publish_error}")
+            await update.message.reply_text(f"⚠️ Пост одобрен, но ошибка при публикации на канал: {publish_error}")
+            return
+        
+        # 📨 ОТПРАВЛЯЕМ УВЕДОМЛЕНИЕ ПОЛЬЗОВАТЕЛЮ
+        try:
+            keyboard = []
+            if published_message_id:
+                keyboard = [
+                    [InlineKeyboardButton("📺 Перейти к посту", url=f"https://t.me/c/1003114019170/{published_message_id}")],
+                    [InlineKeyboardButton("📢 Канал Budapest People", url="https://t.me/c/1003114019170")]
+                ]
             
             user_msg = (
-                f"✅ Заявка одобрена!\n\n"
-                f"📝 Пост опубликован в {destination_text}\n\n"
-                f"🔗 {link}"
+                f"✅ **Ваша заявка одобрена и опубликована!**\n\n"
+                f"🎉 Пост успешно добавлен в канал\n\n"
+                f"📍 Опубликовано в: Budapest People\n"
+                f"⏰ Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                f"🔗 Спасибо за вашу активность в сообществе!"
             )
             
             await context.bot.send_message(
                 chat_id=user_id,
                 text=user_msg,
-                reply_markup=InlineKeyboardMarkup(keyboard)
+                reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None,
+                parse_mode='Markdown'
             )
             
-            logger.info(f"✅ User {user_id} notified")
-            await update.message.reply_text(f"✅ ОДОБРЕНО\n\nПользователь уведомлен\nPost: {post_id}")
+            logger.info(f"✅ User {user_id} notified about approved post")
             
-        except Exception as e:
-            logger.error(f"Failed to notify user: {e}")
-            await update.message.reply_text(f"⚠️ ОДОБРЕНО, но пользователь не уведомлен")
+        except Exception as notify_error:
+            logger.error(f"Failed to notify user: {notify_error}")
+            await update.message.reply_text(f"⚠️ Пост опубликован, но уведомление не отправлено")
+        
+        # ✅ ОТПРАВЛЯЕМ ОТЧЕТ МОДЕРАТОРУ
+        await update.message.reply_text(
+            f"✅ **ПОСТ ОДОБРЕН И ОПУБЛИКОВАН**\n\n"
+            f"📝 Post ID: {post_id}\n"
+            f"👤 Автор: @{username}\n"
+            f"📢 Канал: Budapest People\n"
+            f"👍 Статус: Опубликовано\n\n"
+            f"📨 Пользователь уведомлен"
+        )
         
         # Clear context
         context.user_data.pop('mod_post_id', None)
@@ -283,68 +389,12 @@ async def process_approve_with_link(update: Update, context: ContextTypes.DEFAUL
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:200]}")
 
 
-async def process_reject_with_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Process rejection with reason"""
-    try:
-        reason = update.message.text.strip()
-        post_id = context.user_data.get('mod_post_id')
-        user_id = context.user_data.get('mod_post_user_id')
-        
-        logger.info(f"PROCESS REJECT: Post {post_id}, User {user_id}")
-        
-        if not post_id or not user_id:
-            await update.message.reply_text("❌ Данные не найдены")
-            return
-        
-        if len(reason) < 5:
-            await update.message.reply_text("❌ Причина слишком короткая (мин. 5 символов)")
-            return
-        
-        # Update status
-        from services.db import db
-        from models import Post, PostStatus
-        from sqlalchemy import select
-        
-        async with db.get_session() as session:
-            result = await session.execute(select(Post).where(Post.id == post_id))
-            post = result.scalar_one_or_none()
-            
-            if not post:
-                await update.message.reply_text("❌ Пост не найден")
-                return
-            
-            post.status = PostStatus.REJECTED  # ИСПРАВЛЕНО: используем строку
-            await session.commit()
-            logger.info(f"✅ Post {post_id} rejected")
-        
-        # Notify user
-        try:
-            user_msg = (
-                f"❌ Заявка отклонена\n\n"
-                f"📝 Причина:\n{reason}\n\n"
-                f"💡 Создайте новую заявку, учтя замечания\n\n"
-                f"Используйте /start"
-            )
-            
-            logger.info(f"Sending rejection to user {user_id}...")
-            
-            sent = await context.bot.send_message(chat_id=user_id, text=user_msg)
-            
-            logger.info(f"✅ User {user_id} notified, msg_id: {sent.message_id}")
-            await update.message.reply_text(f"❌ ОТКЛОНЕНО\n\nПользователь уведомлен")
-            
-        except Exception as e:
-            logger.error(f"Failed to notify user {user_id}: {e}")
-            await update.message.reply_text(f"⚠️ ОТКЛОНЕНО, но пользователь не уведомлен")
-        
-        # Clear context
-        context.user_data.pop('mod_post_id', None)
-        context.user_data.pop('mod_post_user_id', None)
-        context.user_data.pop('mod_waiting_for', None)
-        
-    except Exception as e:
-        logger.error(f"REJECT PROCESS ERROR: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ Ошибка: {str(e)[:200]}")
+# ТАКЖЕ ДОБАВИТЬ ИМПОРТЫ В НАЧАЛО ФАЙЛА (если их нет):
+# from datetime import datetime
+# from models import User, Post, PostStatus
+# from services.db import db
+# from sqlalchemy import select
+# from config import Config
 # ============= MODERATION COMMANDS =============
 
 async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
