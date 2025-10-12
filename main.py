@@ -56,7 +56,10 @@ from handlers.games_handler import (
     rollreset_command, rollstatus_command, mynumber_command,
     handle_game_text_input, handle_game_media_input, handle_game_callback
 )
-
+from handlers.rating_handler import (
+    rate_start_command, toppeople_command, topboys_command, 
+    topgirls_command, toppeoplereset_command
+)
 # ============= HANDLERS - УТИЛИТЫ =============
 from handlers.medicine_handler import hp_command, handle_hp_callback
 from handlers.stats_commands import channelstats_command, fullstats_command, resetmsgcount_command, chatinfo_command
@@ -503,9 +506,37 @@ def main():
         filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Document.ALL,
         handle_messages
     ))
+    # В раздел HANDLERS - ИГРЫ
+from handlers.rating_handler import (
+    rate_start_command, toppeople_command, topboys_command, 
+    topgirls_command, toppeoplereset_command
+)
+
+# В раздел регистрации команд
+application.add_handler(CommandHandler("ratestart", rate_start_command))
+application.add_handler(CommandHandler("toppeople", toppeople_command))
+application.add_handler(CommandHandler("topboys", topboys_command))
+application.add_handler(CommandHandler("topgirls", topgirls_command))
+application.add_handler(CommandHandler("toppeoplereset", toppeoplereset_command))
+
+# В обработчик сообщений - добавьте проверку фото для рейтинга
+if context.user_data.get('waiting_for') == 'rate_photo':
+    from handlers.rating_handler import handle_rate_photo
+    await handle_rate_photo(update, context)
+    return
+
+if context.user_data.get('waiting_for') == 'rate_profile':
+    from handlers.rating_handler import handle_rate_profile
+    await handle_rate_profile(update, context)
+    return
     
     application.add_error_handler(error_handler)
-    
+    application.add_handler(CommandHandler("ratestart", rate_start_command))
+    application.add_handler(CommandHandler("toppeople", toppeople_command))
+    application.add_handler(CommandHandler("topboys", topboys_command))
+    application.add_handler(CommandHandler("topgirls", topgirls_command))
+    application.add_handler(CommandHandler("toppeoplereset", toppeoplereset_command))
+
     # Start services
     if Config.SCHEDULER_ENABLED:
         loop.create_task(autopost_service.start())
