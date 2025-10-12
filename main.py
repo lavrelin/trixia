@@ -29,7 +29,7 @@ from handlers.moderation_handler import (
 from handlers.rating_handler import (
     rate_start_command, toppeople_command, topboys_command, 
     topgirls_command, toppeoplereset_command, handle_rate_callback,
-    handle_rate_moderation_callback  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ
+    handle_rate_moderation_callback
 )
 from handlers.profile_handler import handle_profile_callback
 from handlers.basic_handler import id_command, participants_command, report_command
@@ -267,9 +267,6 @@ ttrenumber_command = ignore_budapest_chat_commands(ttrenumber_command)
 ttsave_command = ignore_budapest_chat_commands(ttsave_command)
 trixticketclear_command = ignore_budapest_chat_commands(trixticketclear_command)
 
-# ============= В main.py найти функцию handle_all_callbacks =============
-# Это примерно строка 290-320 в вашем файле
-
 async def handle_all_callbacks(update: Update, context):
     """Router for all callback queries"""
     query = update.callback_query
@@ -313,10 +310,8 @@ async def handle_all_callbacks(update: Update, context):
             await handle_trixticket_callback(update, context)
         elif handler_type == "rate":
             await handle_rate_callback(update, context)
-        # ✅ ДОБАВИТЬ ЭТУ СТРОКУ ЗДЕСЬ (с правильным отступом - 8 пробелов)
         elif handler_type == "rate_mod":
             await handle_rate_moderation_callback(update, context)
-        # ✅ КОНЕЦ
         else:
             await query.answer("⚠️ Неизвестная команда", show_alert=True)
     except Exception as e:
@@ -326,9 +321,6 @@ async def handle_all_callbacks(update: Update, context):
         except:
             pass
 
-
-# ============= В начале main.py найти импорты из handlers =============
-# Примерно на строке 30-50 добавить импорт:
 
 async def handle_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Main message handler - ИСПРАВЛЕННЫЙ"""
