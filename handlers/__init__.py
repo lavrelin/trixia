@@ -189,4 +189,9 @@ __all__ = [
     
     # Bonus
     'bonus_command'
+   # TrixActivity
+    'liketime_command',
+    'liketimeon_command',
+    'liketimeoff_command',
+    'trixikiadd_command', 
 ]
